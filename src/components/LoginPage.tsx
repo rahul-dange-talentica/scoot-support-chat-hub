@@ -7,16 +7,26 @@ import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-electric-scooters.jpg";
 
 const LoginPage = () => {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
 
   const handleSendOTP = async () => {
     if (!phoneNumber) return;
+    if (isSignUp && (!fullName || !email)) return;
     
     try {
       const { error } = await supabase.auth.signInWithOtp({
         phone: phoneNumber,
+        options: isSignUp ? {
+          data: {
+            full_name: fullName,
+            email: email,
+          }
+        } : undefined
       });
       
       if (error) {
@@ -47,11 +57,24 @@ const LoginPage = () => {
         return;
       }
       
-      // Redirect to dashboard after successful login
+      // Redirect to dashboard after successful login/signup
       window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error:', error);
     }
+  };
+
+  const resetForm = () => {
+    setPhoneNumber("");
+    setFullName("");
+    setEmail("");
+    setOtpSent(false);
+    setOtp("");
+  };
+
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    resetForm();
   };
 
   return (
@@ -77,15 +100,48 @@ const LoginPage = () => {
           <CardHeader className="text-center">
             <CardTitle className="flex items-center justify-center gap-2">
               <Smartphone className="h-5 w-5 text-primary" />
-              Mobile Login
+              {isSignUp ? 'Sign Up' : 'Login'}
             </CardTitle>
             <CardDescription>
-              Enter your mobile number to access customer support
+              {isSignUp 
+                ? 'Create your account to access customer support'
+                : 'Enter your mobile number to access customer support'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {!otpSent ? (
               <>
+                {isSignUp && (
+                  <>
+                    <div className="space-y-2">
+                      <label htmlFor="fullName" className="text-sm font-medium">
+                        Full Name
+                      </label>
+                      <Input
+                        id="fullName"
+                        type="text"
+                        placeholder="John Doe"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="transition-smooth"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="email" className="text-sm font-medium">
+                        Email
+                      </label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="john@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="transition-smooth"
+                      />
+                    </div>
+                  </>
+                )}
                 <div className="space-y-2">
                   <label htmlFor="phone" className="text-sm font-medium">
                     Mobile Number
@@ -103,10 +159,22 @@ const LoginPage = () => {
                   onClick={handleSendOTP}
                   variant="electric"
                   className="w-full"
-                  disabled={!phoneNumber}
+                  disabled={!phoneNumber || (isSignUp && (!fullName || !email))}
                 >
                   Send OTP
                 </Button>
+                <div className="text-center">
+                  <Button 
+                    onClick={toggleMode}
+                    variant="ghost"
+                    className="text-sm"
+                  >
+                    {isSignUp 
+                      ? 'Already have an account? Login' 
+                      : "Don't have an account? Sign Up"
+                    }
+                  </Button>
+                </div>
               </>
             ) : (
               <>
