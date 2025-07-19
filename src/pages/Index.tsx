@@ -13,57 +13,104 @@ const Index = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
 
   useEffect(() => {
+    console.log('Index: Setting up auth state listener');
+    
+    // Safety timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      console.log('Index: Safety timeout reached, forcing loading to false');
+      setLoading(false);
+    }, 5000);
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Index: Auth state changed', { event, hasSession: !!session, userId: session?.user?.id });
+        clearTimeout(timeout); // Clear timeout since we got a response
+        
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          console.log('Index: Fetching profile for user', session.user.id);
           // Fetch user profile
           try {
-            const { data: profile } = await supabase
+            const { data: profile, error } = await supabase
               .from('profiles')
               .select('*')
               .eq('user_id', session.user.id)
               .maybeSingle();
+            
+            if (error) {
+              console.error('Index: Error fetching profile:', error);
+            } else {
+              console.log('Index: Profile fetched:', profile);
+            }
             setUserProfile(profile);
           } catch (error) {
-            console.error('Error fetching profile:', error);
+            console.error('Index: Exception fetching profile:', error);
             setUserProfile(null);
           }
         } else {
+          console.log('Index: No session, clearing profile');
           setUserProfile(null);
         }
+        console.log('Index: Setting loading to false (auth state change)');
         setLoading(false);
       }
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    console.log('Index: Checking for existing session');
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      console.log('Index: Existing session check', { hasSession: !!session, error, userId: session?.user?.id });
+      clearTimeout(timeout); // Clear timeout since we got a response
+      
+      if (error) {
+        console.error('Index: Error getting session:', error);
+        setLoading(false);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
+        console.log('Index: Fetching profile for existing session user', session.user.id);
         // Fetch user profile for existing session
         try {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('user_id', session.user.id)
             .maybeSingle();
+          
+          if (profileError) {
+            console.error('Index: Error fetching profile for existing session:', profileError);
+          } else {
+            console.log('Index: Profile fetched for existing session:', profile);
+          }
           setUserProfile(profile);
         } catch (error) {
-          console.error('Error fetching profile:', error);
+          console.error('Index: Exception fetching profile for existing session:', error);
           setUserProfile(null);
         }
       } else {
+        console.log('Index: No existing session, clearing profile');
         setUserProfile(null);
       }
+      console.log('Index: Setting loading to false (existing session check)');
+      setLoading(false);
+    }).catch((error) => {
+      console.error('Index: Exception in getSession:', error);
+      clearTimeout(timeout);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('Index: Cleaning up auth subscription');
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   if (loading) {
