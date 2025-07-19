@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { 
   MessageCircle, 
   Package, 
@@ -10,11 +12,28 @@ import {
   Clock, 
   CheckCircle,
   Truck,
-  HelpCircle
+  HelpCircle,
+  Phone,
+  Mail
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-const CustomerDashboard = () => {
-  const [activeView, setActiveView] = useState<'support' | 'orders'>('support');
+interface CustomerDashboardProps {
+  userProfile: any;
+}
+
+const CustomerDashboard = ({ userProfile }: CustomerDashboardProps) => {
+  const [activeView, setActiveView] = useState<'profile' | 'support' | 'orders'>('support');
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
+  };
 
   // Mock data - will be replaced with real data from Supabase
   const recentChats = [
@@ -54,9 +73,9 @@ const CustomerDashboard = () => {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">+1 (555) 123-4567</span>
+                <span className="text-sm">Hello {userProfile?.full_name || 'User'}</span>
               </div>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -68,6 +87,15 @@ const CustomerDashboard = () => {
       <nav className="border-b bg-muted/50">
         <div className="container mx-auto px-4">
           <div className="flex">
+            <Button
+              variant={activeView === 'profile' ? 'default' : 'ghost'}
+              onClick={() => setActiveView('profile')}
+              className="rounded-none border-b-2 border-transparent data-[active=true]:border-primary"
+              data-active={activeView === 'profile'}
+            >
+              <User className="h-4 w-4" />
+              Profile
+            </Button>
             <Button
               variant={activeView === 'support' ? 'default' : 'ghost'}
               onClick={() => setActiveView('support')}
@@ -92,7 +120,9 @@ const CustomerDashboard = () => {
 
       {/* Content */}
       <main className="container mx-auto px-4 py-6 max-w-4xl">
-        {activeView === 'support' ? (
+        {activeView === 'profile' ? (
+          <ProfileView userProfile={userProfile} />
+        ) : activeView === 'support' ? (
           <SupportView recentChats={recentChats} />
         ) : (
           <OrdersView orders={orders} />
@@ -101,6 +131,76 @@ const CustomerDashboard = () => {
     </div>
   );
 };
+
+const ProfileView = ({ userProfile }: { userProfile: any }) => (
+  <div className="space-y-6">
+    <Card className="shadow-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <User className="h-5 w-5" />
+          Profile Information
+        </CardTitle>
+        <CardDescription>
+          View and manage your account details
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="fullName">Full Name</Label>
+            <Input 
+              id="fullName" 
+              value={userProfile?.full_name || ''} 
+              readOnly 
+              className="bg-muted/50"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <Input 
+                id="email" 
+                value={userProfile?.email || 'Not provided'} 
+                readOnly 
+                className="bg-muted/50"
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="mobile">Mobile Number</Label>
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              <Input 
+                id="mobile" 
+                value={userProfile?.mobile_number || ''} 
+                readOnly 
+                className="bg-muted/50"
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="role">Account Type</Label>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="capitalize">
+                {userProfile?.role || 'Customer'}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t">
+          <p className="text-sm text-muted-foreground">
+            Profile information is managed during signup. Contact support if you need to update your details.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+);
 
 const SupportView = ({ recentChats }: { recentChats: any[] }) => (
   <div className="space-y-6">

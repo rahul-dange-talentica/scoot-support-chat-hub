@@ -1,60 +1,106 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { User, Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 import LoginPage from "@/components/LoginPage";
 import CustomerDashboard from "@/components/CustomerDashboard";
 import AdminDashboard from "@/components/AdminDashboard";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
-  const [userType, setUserType] = useState<'login' | 'customer' | 'admin'>('login');
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
-  // Demo navigation - in real app, this would be handled by authentication state
-  const renderCurrentView = () => {
-    switch (userType) {
-      case 'customer':
-        return <CustomerDashboard />;
-      case 'admin':
-        return <AdminDashboard />;
-      default:
-        return <LoginPage />;
-    }
-  };
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Fetch user profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .single();
+          setUserProfile(profile);
+        } else {
+          setUserProfile(null);
+        }
+        setLoading(false);
+      }
+    );
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Demo Navigation - Remove in production */}
-      {userType === 'login' && (
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (!session) {
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!user || !session) {
+    return (
+      <div className="min-h-screen bg-background">
+        {/* Demo Navigation for testing */}
         <div className="fixed top-4 right-4 z-50 flex gap-2">
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => setUserType('customer')}
+            onClick={() => {
+              // Demo customer login
+              setUser({ id: 'demo-user' } as User);
+              setUserProfile({ full_name: 'Demo Customer', mobile_number: '+91 98765 43210', role: 'customer' });
+            }}
           >
             Demo Customer
           </Button>
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => setUserType('admin')}
+            onClick={() => {
+              // Demo admin login
+              setUser({ id: 'demo-admin' } as User);
+              setUserProfile({ full_name: 'Demo Admin', mobile_number: '+91 98765 43210', role: 'admin' });
+            }}
           >
             Demo Admin
           </Button>
         </div>
-      )}
-      
-      {/* Back to Login for Demo */}
-      {userType !== 'login' && (
-        <div className="fixed top-4 right-4 z-50">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setUserType('login')}
-          >
-            Back to Login
-          </Button>
-        </div>
-      )}
+        <LoginPage />
+      </div>
+    );
+  }
 
-      {renderCurrentView()}
+  // Determine user role and show appropriate dashboard
+  const userRole = userProfile?.role || 'customer';
+
+  return (
+    <div className="min-h-screen bg-background">
+      {userRole === 'admin' ? (
+        <AdminDashboard />
+      ) : (
+        <CustomerDashboard userProfile={userProfile} />
+      )}
     </div>
   );
 };
