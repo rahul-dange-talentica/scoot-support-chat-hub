@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Smartphone, Zap, Shield, Headphones } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-electric-scooters.jpg";
 
 const LoginPage = () => {
@@ -10,14 +11,47 @@ const LoginPage = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
 
-  const handleSendOTP = () => {
-    // This will be connected to Supabase later
-    setOtpSent(true);
+  const handleSendOTP = async () => {
+    if (!phoneNumber) return;
+    
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: phoneNumber,
+      });
+      
+      if (error) {
+        console.error('Error sending OTP:', error.message);
+        // You can add toast notification here
+        return;
+      }
+      
+      setOtpSent(true);
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
-  const handleVerifyOTP = () => {
-    // This will be connected to Supabase authentication
-    console.log("Verifying OTP:", otp);
+  const handleVerifyOTP = async () => {
+    if (!phoneNumber || !otp) return;
+    
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        phone: phoneNumber,
+        token: otp,
+        type: 'sms'
+      });
+      
+      if (error) {
+        console.error('Error verifying OTP:', error.message);
+        // You can add toast notification here
+        return;
+      }
+      
+      // Redirect to dashboard after successful login
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
   return (
