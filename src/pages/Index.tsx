@@ -66,7 +66,7 @@ const Index = () => {
 
     // Set up auth listener with detailed logging
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return;
         
         console.log('🔄 Auth state changed:', { event, hasSession: !!session, userId: session?.user?.id });
@@ -75,22 +75,30 @@ const Index = () => {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          console.log('📋 Fetching profile after auth change for user:', session.user.id);
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-          
-          if (profileError) {
-            console.error('❌ Profile fetch error after auth change:', profileError);
-          } else if (profile) {
-            console.log('✅ Profile found after auth change:', profile);
-          } else {
-            console.log('⚠️ No profile found after auth change for user:', session.user.id);
-          }
-          
-          setUserProfile(profile);
+          // Use setTimeout to avoid potential deadlock issues with async operations in auth callback
+          setTimeout(async () => {
+            console.log('📋 Fetching profile after auth change for user:', session.user.id);
+            try {
+              const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('user_id', session.user.id)
+                .maybeSingle();
+              
+              if (profileError) {
+                console.error('❌ Profile fetch error after auth change:', profileError);
+              } else if (profile) {
+                console.log('✅ Profile found after auth change:', profile);
+                setUserProfile(profile);
+              } else {
+                console.log('⚠️ No profile found after auth change for user:', session.user.id);
+                setUserProfile(null);
+              }
+            } catch (error) {
+              console.error('💥 Profile fetch error:', error);
+              setUserProfile(null);
+            }
+          }, 0);
         } else {
           console.log('🧹 Clearing profile (no session)');
           setUserProfile(null);
