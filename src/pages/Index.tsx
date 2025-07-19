@@ -21,12 +21,17 @@ const Index = () => {
         
         if (session?.user) {
           // Fetch user profile
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .single();
-          setUserProfile(profile);
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .maybeSingle();
+            setUserProfile(profile);
+          } catch (error) {
+            console.error('Error fetching profile:', error);
+            setUserProfile(null);
+          }
         } else {
           setUserProfile(null);
         }
@@ -35,12 +40,27 @@ const Index = () => {
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (!session) {
-        setLoading(false);
+      
+      if (session?.user) {
+        // Fetch user profile for existing session
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('Error fetching profile:', error);
+          setUserProfile(null);
+        }
+      } else {
+        setUserProfile(null);
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
