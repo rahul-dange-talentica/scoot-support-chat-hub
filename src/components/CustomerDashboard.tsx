@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +24,32 @@ interface CustomerDashboardProps {
   onLogout: () => void;
 }
 
+// Helper function to format time ago
+const formatTimeAgo = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  
+  if (days > 0) {
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  } else if (hours > 0) {
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  } else if (minutes > 0) {
+    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  } else {
+    return 'Just now';
+  }
+};
+
 const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) => {
   const [activeView, setActiveView] = useState<'profile' | 'support' | 'orders'>('support');
+  const [supportConversations, setSupportConversations] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   const handleLogout = async () => {
@@ -36,28 +60,67 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
     });
   };
 
-  // Mock data - will be replaced with real data from Supabase
-  const recentChats = [
-    { id: 1, question: "Scooter not charging properly", status: "resolved", time: "2 hours ago" },
-    { id: 2, question: "How to reset my scooter?", status: "pending", time: "1 day ago" },
-  ];
+  // Fetch support conversations and orders from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!userProfile?.user_id) return;
 
-  const orders = [
-    { 
-      id: "ORD-001", 
-      model: "EcoRide Pro X1", 
-      status: "delivered", 
-      date: "2024-01-15",
-      trackingId: "TR123456"
-    },
-    { 
-      id: "ORD-002", 
-      model: "EcoRide Urban", 
-      status: "shipped", 
-      date: "2024-01-18",
-      trackingId: "TR789012"
-    },
-  ];
+      try {
+        setLoading(true);
+
+        // Fetch support conversations
+        const { data: conversations, error: conversationsError } = await supabase
+          .from('support_conversations')
+          .select('*')
+          .eq('user_id', userProfile.user_id)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (conversationsError) {
+          console.error('Error fetching conversations:', conversationsError);
+        } else {
+          setSupportConversations(conversations || []);
+        }
+
+        // Fetch orders
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('user_id', userProfile.user_id)
+          .order('created_at', { ascending: false });
+
+        if (ordersError) {
+          console.error('Error fetching orders:', ordersError);
+        } else {
+          setOrders(ordersData || []);
+        }
+      } catch (error) {
+        console.error('Unexpected error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [userProfile?.user_id]);
+
+  // Format conversations for display
+  const recentChats = supportConversations.map(conv => ({
+    id: conv.id,
+    question: conv.title,
+    status: conv.status,
+    time: formatTimeAgo(conv.last_message_at || conv.created_at)
+  }));
+
+  // Format orders for display
+  const formattedOrders = orders.map(order => ({
+    id: order.order_number,
+    model: order.items[0]?.name || 'Order Items',
+    status: order.status,
+    date: new Date(order.created_at).toLocaleDateString(),
+    trackingId: `TR${order.order_number.slice(-6)}`,
+    totalAmount: order.total_amount
+  }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -121,12 +184,17 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
 
       {/* Content */}
       <main className="container mx-auto px-4 py-6 max-w-4xl">
-        {activeView === 'profile' ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span className="ml-2 text-muted-foreground">Loading...</span>
+          </div>
+        ) : activeView === 'profile' ? (
           <ProfileView userProfile={userProfile} />
         ) : activeView === 'support' ? (
           <SupportView recentChats={recentChats} />
         ) : (
-          <OrdersView orders={orders} />
+          <OrdersView orders={formattedOrders} />
         )}
       </main>
     </div>
