@@ -352,21 +352,6 @@ const LoginPage = () => {
           </CardContent>
         </Card>
 
-        {/* SMS Provider Configuration Notice */}
-        <Card className="mt-6 border-orange-200 bg-orange-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Shield className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <h3 className="font-medium text-orange-800">SMS Provider Required</h3>
-                <p className="text-sm text-orange-700 mt-1">
-                  To enable real OTP functionality, please configure an SMS provider in your Supabase dashboard. 
-                  We recommend Twilio Verify for reliable SMS delivery to Indian mobile numbers.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Features */}
         <div className="mt-8 space-y-4">
