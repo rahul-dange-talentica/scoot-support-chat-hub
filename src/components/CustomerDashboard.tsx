@@ -21,14 +21,15 @@ import { useToast } from "@/hooks/use-toast";
 
 interface CustomerDashboardProps {
   userProfile: any;
+  onLogout: () => void;
 }
 
-const CustomerDashboard = ({ userProfile }: CustomerDashboardProps) => {
+const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) => {
   const [activeView, setActiveView] = useState<'profile' | 'support' | 'orders'>('support');
   const { toast } = useToast();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    onLogout();
     toast({
       title: "Logged out",
       description: "You have been successfully logged out.",
