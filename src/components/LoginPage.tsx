@@ -166,7 +166,7 @@ const LoginPage = () => {
       });
       
       // Redirect to dashboard after successful login/signup
-      window.location.href = '/dashboard';
+      window.location.href = '/';
     } catch (error) {
       console.error('Error:', error);
       toast({
