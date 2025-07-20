@@ -25,7 +25,7 @@ import {
 import { AdminOrderManagement } from "./AdminOrderManagement";
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'orders' | 'profile'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'orders' | 'profile'>('profile');
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
   const [newQuestion, setNewQuestion] = useState({ question: '', answer: '' });
   const [questions, setQuestions] = useState<any[]>([]);
@@ -344,6 +344,14 @@ const AdminDashboard = () => {
         <div className="container mx-auto px-4">
           <div className="flex">
             <Button
+              variant={activeTab === 'profile' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('profile')}
+              className="rounded-none"
+            >
+              <User className="h-4 w-4" />
+              Profile
+            </Button>
+            <Button
               variant={activeTab === 'questions' ? 'default' : 'ghost'}
               onClick={() => setActiveTab('questions')}
               className="rounded-none"
@@ -366,14 +374,6 @@ const AdminDashboard = () => {
             >
               <Package className="h-4 w-4" />
               Order Management
-            </Button>
-            <Button
-              variant={activeTab === 'profile' ? 'default' : 'ghost'}
-              onClick={() => setActiveTab('profile')}
-              className="rounded-none"
-            >
-              <User className="h-4 w-4" />
-              Profile
             </Button>
           </div>
         </div>

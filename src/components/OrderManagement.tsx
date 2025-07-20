@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Package, MessageCircle, Plus } from 'lucide-react';
+import { Package, MessageCircle, Plus, HelpCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 interface Order {
@@ -34,6 +34,12 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [isAddOrderOpen, setIsAddOrderOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [faqQuestions, setFaqQuestions] = useState<any[]>([]);
+  const [showSupportDialog, setShowSupportDialog] = useState(false);
+  const [selectedOrderForSupport, setSelectedOrderForSupport] = useState<string>('');
+  const [supportType, setSupportType] = useState<'faq' | 'new' | ''>('');
+  const [selectedFaqId, setSelectedFaqId] = useState('');
+  const [customQuestion, setCustomQuestion] = useState('');
   const { toast } = useToast();
 
   const scooterModels = [
@@ -47,7 +53,23 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
 
   useEffect(() => {
     fetchOrders();
+    fetchFaqQuestions();
   }, []);
+
+  const fetchFaqQuestions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('faq_questions')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setFaqQuestions(data || []);
+    } catch (error) {
+      console.error('Error fetching FAQ questions:', error);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -121,40 +143,82 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
     }
   };
 
-  const startConversation = async (orderId: string, orderNumber: string) => {
+  const handleStartSupport = (orderId: string) => {
+    setSelectedOrderForSupport(orderId);
+    setShowSupportDialog(true);
+  };
+
+  const startSupportConversation = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
+
+      let conversationTitle = '';
+      let faqQuestionId = null;
+
+      if (supportType === 'faq' && selectedFaqId) {
+        const selectedFaq = faqQuestions.find(faq => faq.id === selectedFaqId);
+        conversationTitle = selectedFaq?.question || 'FAQ Question';
+        faqQuestionId = selectedFaqId;
+      } else if (supportType === 'new' && customQuestion) {
+        conversationTitle = customQuestion;
+      } else {
+        toast({
+          title: "Error",
+          description: "Please select a question type and provide details",
+          variant: "destructive"
+        });
+        return;
+      }
 
       const { data: conversation, error } = await supabase
         .from('support_conversations')
         .insert([{
           user_id: user.id,
-          title: `Order Support - ${orderNumber}`,
+          title: conversationTitle,
           status: 'open',
           priority: 'medium',
-          order_id: orderId
+          order_id: selectedOrderForSupport,
+          faq_question_id: faqQuestionId
         }])
         .select()
         .single();
 
       if (error) throw error;
 
+      // Add initial message if it's a custom question
+      if (supportType === 'new' && customQuestion) {
+        await supabase
+          .from('conversation_messages')
+          .insert([{
+            conversation_id: conversation.id,
+            sender_type: 'customer',
+            message: customQuestion
+          }]);
+      }
+
       toast({
         title: "Success",
         description: "Support conversation started",
       });
 
+      // Reset form and close dialog
+      setShowSupportDialog(false);
+      setSupportType('');
+      setSelectedFaqId('');
+      setCustomQuestion('');
+
       // Call the callback to open the conversation view
       if (onStartConversation && conversation) {
-        onStartConversation(conversation.id, orderNumber);
+        const order = orders.find(o => o.id === selectedOrderForSupport);
+        onStartConversation(conversation.id, order?.order_number || '');
       }
     } catch (error) {
       console.error('Error starting conversation:', error);
       toast({
         title: "Error",
-        description: "Failed to start conversation",
-        variant: "destructive",
+        description: "Failed to start support conversation",
+        variant: "destructive"
       });
     }
   };
@@ -304,7 +368,7 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => startConversation(order.id, order.order_number)}
+                      onClick={() => handleStartSupport(order.id)}
                     >
                       <MessageCircle className="h-4 w-4 mr-2" />
                       Support
@@ -316,6 +380,104 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
           )}
         </CardContent>
       </Card>
+
+      {/* Support Dialog */}
+      <Dialog open={showSupportDialog} onOpenChange={setShowSupportDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Start Support Conversation</DialogTitle>
+            <DialogDescription>
+              Choose how you'd like to get help with your order
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="faq"
+                  name="support-type"
+                  value="faq"
+                  checked={supportType === 'faq'}
+                  onChange={(e) => setSupportType(e.target.value as 'faq')}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="faq" className="text-sm font-medium flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4" />
+                  Select from FAQ
+                </label>
+              </div>
+              
+              {supportType === 'faq' && (
+                <Select value={selectedFaqId} onValueChange={setSelectedFaqId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a frequently asked question" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {faqQuestions.map((faq) => (
+                      <SelectItem key={faq.id} value={faq.id}>
+                        {faq.question}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="new"
+                  name="support-type"
+                  value="new"
+                  checked={supportType === 'new'}
+                  onChange={(e) => setSupportType(e.target.value as 'new')}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="new" className="text-sm font-medium flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  Ask a new question
+                </label>
+              </div>
+              
+              {supportType === 'new' && (
+                <Textarea
+                  placeholder="Describe your question or issue..."
+                  value={customQuestion}
+                  onChange={(e) => setCustomQuestion(e.target.value)}
+                  rows={3}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <Button
+              onClick={startSupportConversation}
+              disabled={
+                !supportType || 
+                (supportType === 'faq' && !selectedFaqId) || 
+                (supportType === 'new' && !customQuestion.trim())
+              }
+            >
+              Start Conversation
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSupportDialog(false);
+                setSupportType('');
+                setSelectedFaqId('');
+                setCustomQuestion('');
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
