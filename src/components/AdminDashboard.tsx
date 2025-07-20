@@ -17,7 +17,8 @@ import {
   Save,
   X,
   Send,
-  ArrowLeft
+  ArrowLeft,
+  LogOut
 } from "lucide-react";
 
 const AdminDashboard = () => {
@@ -262,6 +263,28 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error logging out:', error);
+        toast({
+          title: "Error",
+          description: "Failed to logout",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Logged out",
+          description: "You have been successfully logged out"
+        });
+        // Redirect will be handled by the auth state change in the main app
+      }
+    } catch (error) {
+      console.error('Unexpected error during logout:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -272,9 +295,20 @@ const AdminDashboard = () => {
               <Settings className="h-6 w-6 text-primary" />
               <h1 className="text-xl font-bold">Admin Dashboard</h1>
             </div>
-            <Badge variant="secondary">
-              EcoRide Support Admin
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary">
+                EcoRide Support Admin
+              </Badge>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleLogout}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
       </header>
