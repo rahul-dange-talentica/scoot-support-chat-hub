@@ -6,19 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart, Package, MessageCircle, Plus, Minus } from 'lucide-react';
+import { Package, MessageCircle, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-
-interface Scooter {
-  id: string;
-  name: string;
-  model: string;
-  price: number;
-  description: string;
-  image_url: string;
-}
 
 interface Order {
   id: string;
@@ -31,46 +21,19 @@ interface Order {
   updated_at: string;
 }
 
-interface OrderItem {
-  scooterId: string;
-  name: string;
-  model: string;
-  price: number;
-  quantity: number;
-}
-
 export const OrderManagement = () => {
-  const [scooters, setScooters] = useState<Scooter[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [cart, setCart] = useState<OrderItem[]>([]);
+  const [orderNumber, setOrderNumber] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
+  const [orderDetails, setOrderDetails] = useState('');
+  const [totalAmount, setTotalAmount] = useState('');
+  const [isAddOrderOpen, setIsAddOrderOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchScooters();
     fetchOrders();
   }, []);
-
-  const fetchScooters = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('scooters')
-        .select('*')
-        .eq('is_available', true);
-      
-      if (error) throw error;
-      setScooters(data || []);
-    } catch (error) {
-      console.error('Error fetching scooters:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load scooters",
-        variant: "destructive",
-      });
-    }
-  };
 
   const fetchOrders = async () => {
     try {
@@ -91,58 +54,11 @@ export const OrderManagement = () => {
     }
   };
 
-  const addToCart = (scooter: Scooter) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.scooterId === scooter.id);
-      if (existing) {
-        return prev.map(item =>
-          item.scooterId === scooter.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, {
-        scooterId: scooter.id,
-        name: scooter.name,
-        model: scooter.model,
-        price: scooter.price,
-        quantity: 1
-      }];
-    });
-  };
-
-  const updateCartQuantity = (scooterId: string, quantity: number) => {
-    if (quantity === 0) {
-      setCart(prev => prev.filter(item => item.scooterId !== scooterId));
-    } else {
-      setCart(prev => prev.map(item =>
-        item.scooterId === scooterId ? { ...item, quantity } : item
-      ));
-    }
-  };
-
-  const getTotalAmount = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-  };
-
-  const generateOrderNumber = () => {
-    return `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  };
-
-  const createOrder = async () => {
-    if (cart.length === 0) {
+  const addOrderDetails = async () => {
+    if (!orderNumber.trim() || !deliveryAddress.trim() || !orderDetails.trim() || !totalAmount.trim()) {
       toast({
         title: "Error",
-        description: "Please add items to cart",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!deliveryAddress.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter delivery address",
+        description: "Please fill in all fields",
         variant: "destructive",
       });
       return;
@@ -155,10 +71,10 @@ export const OrderManagement = () => {
 
       const orderData = {
         user_id: user.id,
-        order_number: generateOrderNumber(),
+        order_number: orderNumber,
         status: 'pending',
-        total_amount: getTotalAmount(),
-        items: JSON.stringify(cart),
+        total_amount: parseFloat(totalAmount),
+        items: JSON.stringify([{ description: orderDetails }]),
         delivery_address: deliveryAddress
       };
 
@@ -170,18 +86,20 @@ export const OrderManagement = () => {
 
       toast({
         title: "Success",
-        description: "Order created successfully!",
+        description: "Order details added successfully!",
       });
 
-      setCart([]);
+      setOrderNumber('');
       setDeliveryAddress('');
-      setIsNewOrderOpen(false);
+      setOrderDetails('');
+      setTotalAmount('');
+      setIsAddOrderOpen(false);
       fetchOrders();
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error('Error adding order:', error);
       toast({
         title: "Error",
-        description: "Failed to create order",
+        description: "Failed to add order details",
         variant: "destructive",
       });
     } finally {
@@ -234,126 +152,82 @@ export const OrderManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* New Order Section */}
+      {/* Add Order Details Section */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Place New Order
+            <Plus className="h-5 w-5" />
+            Add Order Details
           </CardTitle>
           <CardDescription>
-            Browse our scooter collection and place your order
+            Add details for orders placed from other portals
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Dialog open={isNewOrderOpen} onOpenChange={setIsNewOrderOpen}>
+          <Dialog open={isAddOrderOpen} onOpenChange={setIsAddOrderOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                New Order
+                Add Order Details
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Create New Order</DialogTitle>
+                <DialogTitle>Add Order Details</DialogTitle>
                 <DialogDescription>
-                  Select scooters and complete your order
+                  Enter the details of your scooter order
                 </DialogDescription>
               </DialogHeader>
               
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Scooters Grid */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold">Available Scooters</h3>
-                  <div className="grid gap-4">
-                    {scooters.map((scooter) => (
-                      <Card key={scooter.id} className="p-4">
-                        <div className="flex items-center gap-4">
-                          <img 
-                            src={scooter.image_url} 
-                            alt={scooter.name}
-                            className="w-16 h-16 object-cover rounded"
-                          />
-                          <div className="flex-1">
-                            <h4 className="font-medium">{scooter.name}</h4>
-                            <p className="text-sm text-muted-foreground">{scooter.model}</p>
-                            <p className="text-sm">{scooter.description}</p>
-                            <p className="font-semibold">${scooter.price}</p>
-                          </div>
-                          <Button 
-                            size="sm"
-                            onClick={() => addToCart(scooter)}
-                          >
-                            Add to Cart
-                          </Button>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="order-number">Order Number</Label>
+                  <Input
+                    id="order-number"
+                    placeholder="Enter your order number"
+                    value={orderNumber}
+                    onChange={(e) => setOrderNumber(e.target.value)}
+                  />
                 </div>
-
-                {/* Cart */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold">Your Cart</h3>
-                  {cart.length === 0 ? (
-                    <p className="text-muted-foreground">Cart is empty</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {cart.map((item) => (
-                        <Card key={item.scooterId} className="p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="font-medium">{item.name}</h4>
-                              <p className="text-sm text-muted-foreground">{item.model}</p>
-                              <p className="text-sm">${item.price} each</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateCartQuantity(item.scooterId, item.quantity - 1)}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="px-2">{item.quantity}</span>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => updateCartQuantity(item.scooterId, item.quantity + 1)}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        </Card>
-                      ))}
-                      
-                      <div className="space-y-3 pt-4 border-t">
-                        <div className="flex justify-between font-semibold">
-                          <span>Total: ${getTotalAmount().toFixed(2)}</span>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="delivery-address">Delivery Address</Label>
-                          <Textarea
-                            id="delivery-address"
-                            placeholder="Enter your complete delivery address"
-                            value={deliveryAddress}
-                            onChange={(e) => setDeliveryAddress(e.target.value)}
-                          />
-                        </div>
-                        
-                        <Button 
-                          onClick={createOrder} 
-                          disabled={loading}
-                          className="w-full"
-                        >
-                          {loading ? 'Creating Order...' : 'Place Order'}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="order-details">Order Details</Label>
+                  <Textarea
+                    id="order-details"
+                    placeholder="Describe your scooter order (model, specifications, etc.)"
+                    value={orderDetails}
+                    onChange={(e) => setOrderDetails(e.target.value)}
+                  />
                 </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="total-amount">Total Amount</Label>
+                  <Input
+                    id="total-amount"
+                    type="number"
+                    placeholder="Enter total amount"
+                    value={totalAmount}
+                    onChange={(e) => setTotalAmount(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="delivery-address">Delivery Address</Label>
+                  <Textarea
+                    id="delivery-address"
+                    placeholder="Enter your delivery address"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                  />
+                </div>
+                
+                <Button 
+                  onClick={addOrderDetails} 
+                  disabled={loading}
+                  className="w-full"
+                >
+                  {loading ? 'Adding Order...' : 'Add Order Details'}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
