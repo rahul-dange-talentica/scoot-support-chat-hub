@@ -470,6 +470,83 @@ const SupportView = ({
   onResolveConversation,
   onSelectConversation
 }: SupportViewProps) => {
+  const [showNewConversationDialog, setShowNewConversationDialog] = useState(false);
+  const [selectedFAQ, setSelectedFAQ] = useState<any>(null);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [customQuestion, setCustomQuestion] = useState('');
+  const [orders, setOrders] = useState<any[]>([]);
+  
+  // Fetch orders for the dropdown
+  useEffect(() => {
+    const fetchOrders = async () => {
+      const { data: ordersData, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (!error) {
+        setOrders(ordersData || []);
+      }
+    };
+    fetchOrders();
+  }, []);
+
+  const handleStartNewConversation = async () => {
+    if (!selectedFAQ && !customQuestion.trim()) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      // Create new conversation
+      const conversationData = {
+        user_id: user.id,
+        title: selectedFAQ ? selectedFAQ.question : customQuestion,
+        faq_question_id: selectedFAQ?.id || null,
+        order_id: selectedOrder?.id || null,
+        last_message: selectedFAQ ? selectedFAQ.answer : customQuestion,
+        last_message_at: new Date().toISOString()
+      };
+
+      const { data: conversation, error: convError } = await supabase
+        .from('support_conversations')
+        .insert(conversationData)
+        .select()
+        .single();
+
+      if (convError) throw convError;
+
+      // Add initial message
+      if (selectedFAQ) {
+        await supabase
+          .from('conversation_messages')
+          .insert({
+            conversation_id: conversation.id,
+            sender_type: 'admin',
+            message: selectedFAQ.answer
+          });
+      } else {
+        await supabase
+          .from('conversation_messages')
+          .insert({
+            conversation_id: conversation.id,
+            sender_type: 'customer',
+            message: customQuestion
+          });
+      }
+
+      // Reset dialog state
+      setShowNewConversationDialog(false);
+      setSelectedFAQ(null);
+      setSelectedOrder(null);
+      setCustomQuestion('');
+
+      // Open the conversation
+      onSelectConversation(conversation);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+    }
+  };
   
   if (selectedConversation) {
     return (
@@ -554,38 +631,22 @@ const SupportView = ({
 
   return (
     <div className="space-y-6">
-      {/* FAQ Questions */}
-      <Card className="shadow-card">
-        <CardHeader>
-          <CardTitle>Frequently Asked Questions</CardTitle>
-          <CardDescription>
-            Click on any question to get an instant answer and start a conversation
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {faqQuestions.map((faq) => (
-              <Button
-                key={faq.id}
-                variant="outline"
-                className="h-auto p-4 justify-start text-left w-full"
-                onClick={() => onFaqQuestion(faq)}
-              >
-                <HelpCircle className="h-5 w-5 mr-3 text-muted-foreground flex-shrink-0" />
-                <span>{faq.question}</span>
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Recent Conversations */}
       <Card className="shadow-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Recent Conversations
-          </CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Recent Conversations
+            </CardTitle>
+            <CardDescription>
+              View your past conversations or start a new one
+            </CardDescription>
+          </div>
+          <Button onClick={() => setShowNewConversationDialog(true)}>
+            <MessageCircle className="h-4 w-4 mr-2" />
+            New Conversation
+          </Button>
         </CardHeader>
         <CardContent>
           {recentChats.length > 0 ? (
@@ -613,12 +674,108 @@ const SupportView = ({
               ))}
             </div>
           ) : (
-            <p className="text-center text-muted-foreground py-8">
-              No recent conversations. Start by asking a question above!
-            </p>
+            <div className="text-center py-8">
+              <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground mb-4">No conversations yet</p>
+              <Button onClick={() => setShowNewConversationDialog(true)}>
+                Start Your First Conversation
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* New Conversation Dialog */}
+      {showNewConversationDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle>Start New Conversation</CardTitle>
+              <CardDescription>
+                Choose a frequently asked question or ask your own
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* FAQ Dropdown */}
+              <div className="space-y-2">
+                <Label>Select a common question (optional)</Label>
+                <select 
+                  className="w-full p-2 border rounded-md"
+                  value={selectedFAQ?.id || ''}
+                  onChange={(e) => {
+                    const faq = faqQuestions.find(q => q.id === e.target.value);
+                    setSelectedFAQ(faq || null);
+                    if (faq) setCustomQuestion('');
+                  }}
+                >
+                  <option value="">Choose a question...</option>
+                  {faqQuestions.map((faq) => (
+                    <option key={faq.id} value={faq.id}>
+                      {faq.question}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Order Selection */}
+              <div className="space-y-2">
+                <Label>Related to an order? (optional)</Label>
+                <select 
+                  className="w-full p-2 border rounded-md"
+                  value={selectedOrder?.id || ''}
+                  onChange={(e) => {
+                    const order = orders.find(o => o.id === e.target.value);
+                    setSelectedOrder(order || null);
+                  }}
+                >
+                  <option value="">No specific order</option>
+                  {orders.map((order) => (
+                    <option key={order.id} value={order.id}>
+                      Order {order.order_number}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Custom Question */}
+              {!selectedFAQ && (
+                <div className="space-y-2">
+                  <Label>Or ask your own question</Label>
+                  <textarea
+                    className="w-full p-2 border rounded-md h-20 resize-none"
+                    placeholder="Type your question here..."
+                    value={customQuestion}
+                    onChange={(e) => setCustomQuestion(e.target.value)}
+                  />
+                </div>
+              )}
+            </CardContent>
+            <div className="p-6 pt-0">
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowNewConversationDialog(false);
+                    setSelectedFAQ(null);
+                    setSelectedOrder(null);
+                    setCustomQuestion('');
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleStartNewConversation}
+                  disabled={!selectedFAQ && !customQuestion.trim()}
+                  className="flex-1"
+                >
+                  Start Conversation
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

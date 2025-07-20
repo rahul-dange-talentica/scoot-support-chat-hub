@@ -138,62 +138,7 @@ const Index = () => {
 
   // Show login page if not authenticated
   if (!user || !session) {
-    return (
-      <div className="min-h-screen bg-background">
-        {/* Debug Info */}
-        <div className="fixed top-4 left-4 z-50 text-xs bg-card p-2 rounded border">
-          <div>User: {user ? '✅' : '❌'}</div>
-          <div>Session: {session ? '✅' : '❌'}</div>
-          <div>Profile: {userProfile ? '✅' : '❌'}</div>
-          {userProfile && <div>Name: {userProfile.full_name}</div>}
-        </div>
-        
-        {/* Demo Navigation for testing */}
-        <div className="fixed top-4 right-4 z-50 flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={async () => {
-              console.log('🧪 Testing real login...');
-              // Try to sign in as the existing user for testing
-              const { data, error } = await supabase.auth.signInWithOtp({
-                phone: '+919970396783',
-                options: {
-                  channel: 'sms'
-                }
-              });
-              if (error) {
-                console.error('Real login error:', error);
-              } else {
-                console.log('Real login initiated:', data);
-              }
-            }}
-          >
-            Test Real Login
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => {
-              // Demo customer login
-              const demoUser = { id: 'demo-customer', email: 'demo@customer.com' } as User;
-              const demoProfile = { 
-                full_name: 'Demo Customer', 
-                mobile_number: '+91 98765 43210', 
-                email: 'demo@customer.com',
-                role: 'customer' 
-              };
-              setUser(demoUser);
-              setUserProfile(demoProfile);
-              setLoading(false);
-            }}
-          >
-            Demo Customer
-          </Button>
-        </div>
-        <LoginPage />
-      </div>
-    );
+    return <LoginPage />;
   }
 
   // Determine user role and show appropriate dashboard
