@@ -15,7 +15,9 @@ import {
   Users,
   HelpCircle,
   Save,
-  X
+  X,
+  Send,
+  ArrowLeft
 } from "lucide-react";
 
 const AdminDashboard = () => {
@@ -24,6 +26,9 @@ const AdminDashboard = () => {
   const [newQuestion, setNewQuestion] = useState({ question: '', answer: '' });
   const [questions, setQuestions] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<any>(null);
+  const [conversationMessages, setConversationMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -207,6 +212,65 @@ const AdminDashboard = () => {
     }
   };
 
+  // Fetch conversation messages
+  const fetchConversationMessages = async (conversationId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('conversation_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching messages:', error);
+      } else {
+        setConversationMessages(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
+  // Send admin response
+  const handleSendAdminMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
+
+    try {
+      // Add admin message
+      await supabase
+        .from('conversation_messages')
+        .insert({
+          conversation_id: selectedConversation.id,
+          sender_type: 'admin',
+          message: newMessage
+        });
+
+      // Update conversation
+      await supabase
+        .from('support_conversations')
+        .update({
+          last_message: newMessage,
+          last_message_at: new Date().toISOString()
+        })
+        .eq('id', selectedConversation.id);
+
+      setNewMessage('');
+      await fetchConversationMessages(selectedConversation.id);
+      
+      toast({
+        title: "Response sent",
+        description: "Your response has been sent to the customer",
+      });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send response",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -265,6 +329,13 @@ const AdminDashboard = () => {
           <QueriesManagement 
             conversations={conversations} 
             onResolveConversation={handleResolveConversation}
+            selectedConversation={selectedConversation}
+            setSelectedConversation={setSelectedConversation}
+            conversationMessages={conversationMessages}
+            fetchConversationMessages={fetchConversationMessages}
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            onSendMessage={handleSendAdminMessage}
           />
         )}
       </main>
@@ -404,61 +475,176 @@ const EditQuestionForm = ({ question, onSave, onCancel }: any) => {
   );
 };
 
-const QueriesManagement = ({ conversations, onResolveConversation }: { conversations: any[], onResolveConversation: (id: string) => void }) => (
-  <div className="space-y-6">
-    <Card className="shadow-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Pending Customer Queries
-        </CardTitle>
-        <CardDescription>
-          Review and respond to customer questions that need human attention
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {conversations.length > 0 ? conversations.map((conversation) => (
-            <div key={conversation.id} className="border rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Customer: {conversation.profiles?.mobile_number || 'Unknown'}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(conversation.created_at).toLocaleDateString()} at {new Date(conversation.created_at).toLocaleTimeString()}
-                  </p>
-                </div>
-                <Badge variant="secondary">{conversation.status}</Badge>
-              </div>
-              
-              <div className="bg-muted/50 p-3 rounded-lg">
-                <h4 className="font-medium mb-1">{conversation.title}</h4>
-                {conversation.last_message && (
-                  <p className="text-sm">{conversation.last_message}</p>
-                )}
-              </div>
+interface QueriesManagementProps {
+  conversations: any[];
+  onResolveConversation: (id: string) => void;
+  selectedConversation: any;
+  setSelectedConversation: (conversation: any) => void;
+  conversationMessages: any[];
+  fetchConversationMessages: (id: string) => void;
+  newMessage: string;
+  setNewMessage: (message: string) => void;
+  onSendMessage: () => void;
+}
 
-              <div className="flex gap-2">
-                <Button variant="electric" size="sm">
-                  View Conversation
+const QueriesManagement = ({ 
+  conversations, 
+  onResolveConversation,
+  selectedConversation,
+  setSelectedConversation,
+  conversationMessages,
+  fetchConversationMessages,
+  newMessage,
+  setNewMessage,
+  onSendMessage
+}: QueriesManagementProps) => {
+  
+  const handleViewConversation = (conversation: any) => {
+    setSelectedConversation(conversation);
+    fetchConversationMessages(conversation.id);
+  };
+
+  if (selectedConversation) {
+    return (
+      <div className="space-y-4">
+        {/* Conversation Header */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedConversation(null)}>
+                  <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => onResolveConversation(conversation.id)}
+                <div>
+                  <CardTitle className="text-lg">{selectedConversation.title}</CardTitle>
+                  <CardDescription>
+                    Customer: {selectedConversation.profiles?.mobile_number || 'Unknown'} • 
+                    Started {new Date(selectedConversation.created_at).toLocaleDateString()}
+                  </CardDescription>
+                </div>
+              </div>
+              {!selectedConversation.is_resolved && (
+                <Button onClick={() => onResolveConversation(selectedConversation.id)} variant="outline" size="sm">
+                  Mark as Resolved
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Messages */}
+        <Card className="shadow-card">
+          <CardContent className="p-0">
+            <div className="max-h-96 overflow-y-auto p-4 space-y-4">
+              {conversationMessages.map((message) => (
+                <div 
+                  key={message.id} 
+                  className={`flex ${message.sender_type === 'admin' ? 'justify-end' : 'justify-start'}`}
                 >
-                  Mark Resolved
+                  <div 
+                    className={`max-w-[80%] p-3 rounded-lg ${
+                      message.sender_type === 'admin' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-muted'
+                    }`}
+                  >
+                    <p className="text-sm">{message.message}</p>
+                    <p className={`text-xs mt-1 ${
+                      message.sender_type === 'admin' 
+                        ? 'text-primary-foreground/70' 
+                        : 'text-muted-foreground'
+                    }`}>
+                      {message.sender_type === 'admin' ? 'Admin' : 'Customer'} • {new Date(message.created_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Admin Response Input */}
+        {!selectedConversation.is_resolved && (
+          <Card className="shadow-card">
+            <CardContent className="p-4">
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder="Type your response to the customer..."
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  rows={3}
+                />
+                <Button onClick={onSendMessage} disabled={!newMessage.trim()}>
+                  <Send className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
-          )) : (
-            <p className="text-center text-muted-foreground py-8">
-              No open conversations at the moment.
-            </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  </div>
-);
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Pending Customer Queries
+          </CardTitle>
+          <CardDescription>
+            Review and respond to customer questions that need human attention
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {conversations.length > 0 ? conversations.map((conversation) => (
+              <div key={conversation.id} className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Customer: {conversation.profiles?.mobile_number || 'Unknown'}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(conversation.created_at).toLocaleDateString()} at {new Date(conversation.created_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">{conversation.status}</Badge>
+                </div>
+                
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <h4 className="font-medium mb-1">{conversation.title}</h4>
+                  {conversation.last_message && (
+                    <p className="text-sm">{conversation.last_message}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Button 
+                    variant="electric" 
+                    size="sm"
+                    onClick={() => handleViewConversation(conversation)}
+                  >
+                    View Conversation
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => onResolveConversation(conversation.id)}
+                  >
+                    Mark Resolved
+                  </Button>
+                </div>
+              </div>
+            )) : (
+              <p className="text-center text-muted-foreground py-8">
+                No open conversations at the moment.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 export default AdminDashboard;
