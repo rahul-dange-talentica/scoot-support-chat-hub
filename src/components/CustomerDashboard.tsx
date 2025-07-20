@@ -14,7 +14,9 @@ import {
   Truck,
   HelpCircle,
   Phone,
-  Mail
+  Mail,
+  Send,
+  ArrowLeft
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +30,10 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
   const [activeView, setActiveView] = useState<'profile' | 'support' | 'orders'>('support');
   const [supportConversations, setSupportConversations] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [faqQuestions, setFaqQuestions] = useState<any[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<any>(null);
+  const [conversationMessages, setConversationMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -60,13 +66,26 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
     });
   };
 
-  // Fetch support conversations and orders from Supabase
+  // Fetch data from Supabase
   useEffect(() => {
     const fetchData = async () => {
       if (!userProfile?.user_id) return;
 
       try {
         setLoading(true);
+
+        // Fetch FAQ questions
+        const { data: faqData, error: faqError } = await supabase
+          .from('faq_questions')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: true });
+
+        if (faqError) {
+          console.error('Error fetching FAQ questions:', faqError);
+        } else {
+          setFaqQuestions(faqData || []);
+        }
 
         // Fetch support conversations
         const { data: conversations, error: conversationsError } = await supabase
@@ -103,6 +122,128 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
 
     fetchData();
   }, [userProfile?.user_id]);
+
+  // Handle FAQ question selection
+  const handleFaqQuestion = async (question: any) => {
+    try {
+      // Create a new conversation
+      const { data: conversation, error: convError } = await supabase
+        .from('support_conversations')
+        .insert({
+          user_id: userProfile.user_id,
+          title: question.question,
+          faq_question_id: question.id,
+          last_message: question.answer,
+          last_message_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (convError) {
+        toast({
+          title: "Error",
+          description: "Failed to start conversation",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Add the initial FAQ answer as a message
+      await supabase
+        .from('conversation_messages')
+        .insert({
+          conversation_id: conversation.id,
+          sender_type: 'admin',
+          message: question.answer
+        });
+
+      setSelectedConversation(conversation);
+      await fetchConversationMessages(conversation.id);
+      
+      toast({
+        title: "Question answered",
+        description: "You can now ask follow-up questions",
+      });
+    } catch (error) {
+      console.error('Error handling FAQ question:', error);
+    }
+  };
+
+  // Fetch conversation messages
+  const fetchConversationMessages = async (conversationId: string) => {
+    const { data: messages, error } = await supabase
+      .from('conversation_messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching messages:', error);
+    } else {
+      setConversationMessages(messages || []);
+    }
+  };
+
+  // Send a new message
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
+
+    try {
+      // Add user message
+      await supabase
+        .from('conversation_messages')
+        .insert({
+          conversation_id: selectedConversation.id,
+          sender_type: 'customer',
+          message: newMessage
+        });
+
+      // Update conversation
+      await supabase
+        .from('support_conversations')
+        .update({
+          last_message: newMessage,
+          last_message_at: new Date().toISOString()
+        })
+        .eq('id', selectedConversation.id);
+
+      setNewMessage('');
+      await fetchConversationMessages(selectedConversation.id);
+      
+      toast({
+        title: "Message sent",
+        description: "Your message has been sent to support",
+      });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Mark conversation as resolved
+  const handleResolveConversation = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      await supabase
+        .from('support_conversations')
+        .update({ is_resolved: true, status: 'resolved' })
+        .eq('id', selectedConversation.id);
+
+      setSelectedConversation({ ...selectedConversation, is_resolved: true, status: 'resolved' });
+      
+      toast({
+        title: "Conversation resolved",
+        description: "Thank you for your feedback!",
+      });
+    } catch (error) {
+      console.error('Error resolving conversation:', error);
+    }
+  };
 
   // Format conversations for display
   const recentChats = supportConversations.map(conv => ({
@@ -192,7 +333,22 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
         ) : activeView === 'profile' ? (
           <ProfileView userProfile={userProfile} />
         ) : activeView === 'support' ? (
-          <SupportView recentChats={recentChats} />
+          <SupportView 
+            recentChats={recentChats} 
+            faqQuestions={faqQuestions}
+            onFaqQuestion={handleFaqQuestion}
+            selectedConversation={selectedConversation}
+            conversationMessages={conversationMessages}
+            onBackToList={() => setSelectedConversation(null)}
+            onSendMessage={handleSendMessage}
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            onResolveConversation={handleResolveConversation}
+            onSelectConversation={(conv) => {
+              setSelectedConversation(conv);
+              fetchConversationMessages(conv.id);
+            }}
+          />
         ) : (
           <OrdersView orders={formattedOrders} />
         )}
@@ -271,69 +427,185 @@ const ProfileView = ({ userProfile }: { userProfile: any }) => (
   </div>
 );
 
-const SupportView = ({ recentChats }: { recentChats: any[] }) => (
-  <div className="space-y-6">
-    {/* Quick Actions */}
-    <Card className="shadow-card">
-      <CardHeader>
-        <CardTitle>How can we help you today?</CardTitle>
-        <CardDescription>
-          Choose from common questions or start a new conversation
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Button variant="support" className="h-auto p-4 justify-start">
-            <div className="text-left">
-              <div className="font-medium">Ask a Question</div>
-              <div className="text-sm opacity-80">Get help with your scooter</div>
-            </div>
-          </Button>
-          <Button variant="support" className="h-auto p-4 justify-start">
-            <div className="text-left">
-              <div className="font-medium">Upload Issue Photo</div>
-              <div className="text-sm opacity-80">Show us the problem</div>
-            </div>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+interface SupportViewProps {
+  recentChats: any[];
+  faqQuestions: any[];
+  onFaqQuestion: (question: any) => void;
+  selectedConversation: any;
+  conversationMessages: any[];
+  onBackToList: () => void;
+  onSendMessage: () => void;
+  newMessage: string;
+  setNewMessage: (message: string) => void;
+  onResolveConversation: () => void;
+  onSelectConversation: (conv: any) => void;
+}
 
-    {/* Recent Conversations */}
-    <Card className="shadow-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock className="h-5 w-5" />
-          Recent Conversations
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {recentChats.length > 0 ? (
-          <div className="space-y-3">
-            {recentChats.map((chat) => (
-              <div key={chat.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-smooth cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <HelpCircle className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">{chat.question}</p>
-                    <p className="text-sm text-muted-foreground">{chat.time}</p>
+const SupportView = ({ 
+  recentChats, 
+  faqQuestions, 
+  onFaqQuestion, 
+  selectedConversation, 
+  conversationMessages, 
+  onBackToList, 
+  onSendMessage, 
+  newMessage, 
+  setNewMessage, 
+  onResolveConversation,
+  onSelectConversation
+}: SupportViewProps) => {
+  
+  if (selectedConversation) {
+    return (
+      <div className="space-y-4">
+        {/* Conversation Header */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" onClick={onBackToList}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div>
+                  <CardTitle className="text-lg">{selectedConversation.title}</CardTitle>
+                  <CardDescription>
+                    Started {new Date(selectedConversation.created_at).toLocaleDateString()}
+                  </CardDescription>
+                </div>
+              </div>
+              {!selectedConversation.is_resolved && (
+                <Button onClick={onResolveConversation} variant="outline" size="sm">
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Mark as Resolved
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Messages */}
+        <Card className="shadow-card">
+          <CardContent className="p-0">
+            <div className="max-h-96 overflow-y-auto p-4 space-y-4">
+              {conversationMessages.map((message, index) => (
+                <div 
+                  key={message.id} 
+                  className={`flex ${message.sender_type === 'customer' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div 
+                    className={`max-w-[80%] p-3 rounded-lg ${
+                      message.sender_type === 'customer' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-muted'
+                    }`}
+                  >
+                    <p className="text-sm">{message.message}</p>
+                    <p className={`text-xs mt-1 ${
+                      message.sender_type === 'customer' 
+                        ? 'text-primary-foreground/70' 
+                        : 'text-muted-foreground'
+                    }`}>
+                      {new Date(message.created_at).toLocaleTimeString()}
+                    </p>
                   </div>
                 </div>
-                <Badge variant={chat.status === 'resolved' ? 'default' : 'secondary'}>
-                  {chat.status}
-                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Message Input */}
+        {!selectedConversation.is_resolved && (
+          <Card className="shadow-card">
+            <CardContent className="p-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Type your follow-up question..."
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && onSendMessage()}
+                />
+                <Button onClick={onSendMessage} disabled={!newMessage.trim()}>
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* FAQ Questions */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle>Frequently Asked Questions</CardTitle>
+          <CardDescription>
+            Click on any question to get an instant answer and start a conversation
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {faqQuestions.map((faq) => (
+              <Button
+                key={faq.id}
+                variant="outline"
+                className="h-auto p-4 justify-start text-left w-full"
+                onClick={() => onFaqQuestion(faq)}
+              >
+                <HelpCircle className="h-5 w-5 mr-3 text-muted-foreground flex-shrink-0" />
+                <span>{faq.question}</span>
+              </Button>
             ))}
           </div>
-        ) : (
-          <p className="text-center text-muted-foreground py-8">
-            No recent conversations. Start by asking a question!
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  </div>
-);
+        </CardContent>
+      </Card>
+
+      {/* Recent Conversations */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Recent Conversations
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentChats.length > 0 ? (
+            <div className="space-y-3">
+              {recentChats.map((chat) => (
+                <div 
+                  key={chat.id} 
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
+                  onClick={() => {
+                    const conversation = { id: chat.id, title: chat.question };
+                    onSelectConversation(conversation);
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <MessageCircle className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">{chat.question}</p>
+                      <p className="text-sm text-muted-foreground">{chat.time}</p>
+                    </div>
+                  </div>
+                  <Badge variant={chat.status === 'resolved' ? 'default' : 'secondary'}>
+                    {chat.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">
+              No recent conversations. Start by asking a question above!
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 const OrdersView = ({ orders }: { orders: any[] }) => (
   <div className="space-y-6">

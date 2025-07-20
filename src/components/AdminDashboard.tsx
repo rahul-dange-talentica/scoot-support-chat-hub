@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Settings, 
   Plus, 
@@ -18,64 +20,191 @@ import {
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<'questions' | 'queries'>('questions');
-  const [editingQuestion, setEditingQuestion] = useState<number | null>(null);
-  const [newQuestion, setNewQuestion] = useState({ question: '', answer: '', category: '' });
+  const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
+  const [newQuestion, setNewQuestion] = useState({ question: '', answer: '' });
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Mock data - will be replaced with Supabase data
-  const [questions, setQuestions] = useState([
-    {
-      id: 1,
-      question: "How do I charge my electric scooter?",
-      answer: "Connect the charger to your scooter's charging port and plug it into a wall outlet. The LED indicator will show charging status.",
-      category: "Charging",
-      active: true
-    },
-    {
-      id: 2,
-      question: "What's the maximum speed?",
-      answer: "Our scooters can reach up to 25 mph (40 km/h) depending on the model and local regulations.",
-      category: "Performance",
-      active: true
-    },
-    {
-      id: 3,
-      question: "How do I reset my scooter?",
-      answer: "Press and hold the power button for 10 seconds while the scooter is off. The display will flash to confirm reset.",
-      category: "Troubleshooting",
-      active: true
-    }
-  ]);
+  // Fetch data from Supabase
+  useEffect(() => {
+    fetchQuestions();
+    fetchConversations();
+  }, []);
 
-  const pendingQueries = [
-    {
-      id: 1,
-      customerPhone: "+1 (555) 123-4567",
-      query: "My scooter makes a strange noise when braking",
-      timestamp: "2024-01-20 14:30",
-      status: "pending"
-    },
-    {
-      id: 2,
-      customerPhone: "+1 (555) 987-6543",
-      query: "Battery drains faster than expected",
-      timestamp: "2024-01-20 11:15",
-      status: "pending"
-    }
-  ];
+  const fetchQuestions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('faq_questions')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const handleAddQuestion = () => {
-    if (newQuestion.question && newQuestion.answer) {
-      setQuestions([...questions, {
-        id: Date.now(),
-        ...newQuestion,
-        active: true
-      }]);
-      setNewQuestion({ question: '', answer: '', category: '' });
+      if (error) {
+        console.error('Error fetching questions:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch FAQ questions",
+          variant: "destructive"
+        });
+      } else {
+        setQuestions(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDeleteQuestion = (id: number) => {
-    setQuestions(questions.filter(q => q.id !== id));
+  const fetchConversations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('support_conversations')
+        .select(`
+          *,
+          profiles!inner(mobile_number, full_name)
+        `)
+        .eq('is_resolved', false)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching conversations:', error);
+      } else {
+        setConversations(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error:', error);
+    }
+  };
+
+  const handleAddQuestion = async () => {
+    if (!newQuestion.question || !newQuestion.answer) {
+      toast({
+        title: "Error",
+        description: "Please fill in both question and answer",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('faq_questions')
+        .insert({
+          question: newQuestion.question,
+          answer: newQuestion.answer,
+          is_active: true
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      setNewQuestion({ question: '', answer: '' });
+      await fetchQuestions();
+      
+      toast({
+        title: "Success",
+        description: "FAQ question added successfully"
+      });
+    } catch (error) {
+      console.error('Error adding question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add FAQ question",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateQuestion = async (id: string, updatedData: any) => {
+    try {
+      const { error } = await supabase
+        .from('faq_questions')
+        .update({
+          question: updatedData.question,
+          answer: updatedData.answer,
+          is_active: updatedData.is_active
+        })
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+
+      await fetchQuestions();
+      setEditingQuestion(null);
+      
+      toast({
+        title: "Success",
+        description: "FAQ question updated successfully"
+      });
+    } catch (error) {
+      console.error('Error updating question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update FAQ question",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteQuestion = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('faq_questions')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+
+      await fetchQuestions();
+      
+      toast({
+        title: "Success",
+        description: "FAQ question deleted successfully"
+      });
+    } catch (error) {
+      console.error('Error deleting question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete FAQ question",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleResolveConversation = async (conversationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('support_conversations')
+        .update({ 
+          is_resolved: true, 
+          status: 'resolved' 
+        })
+        .eq('id', conversationId);
+
+      if (error) {
+        throw error;
+      }
+
+      await fetchConversations();
+      
+      toast({
+        title: "Success",
+        description: "Conversation marked as resolved"
+      });
+    } catch (error) {
+      console.error('Error resolving conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to resolve conversation",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -124,16 +253,19 @@ const AdminDashboard = () => {
         {activeTab === 'questions' ? (
           <QuestionsManagement 
             questions={questions}
-            setQuestions={setQuestions}
             newQuestion={newQuestion}
             setNewQuestion={setNewQuestion}
             editingQuestion={editingQuestion}
             setEditingQuestion={setEditingQuestion}
             handleAddQuestion={handleAddQuestion}
             handleDeleteQuestion={handleDeleteQuestion}
+            handleUpdateQuestion={handleUpdateQuestion}
           />
         ) : (
-          <QueriesManagement queries={pendingQueries} />
+          <QueriesManagement 
+            conversations={conversations} 
+            onResolveConversation={handleResolveConversation}
+          />
         )}
       </main>
     </div>
@@ -142,13 +274,13 @@ const AdminDashboard = () => {
 
 const QuestionsManagement = ({ 
   questions, 
-  setQuestions, 
   newQuestion, 
   setNewQuestion, 
   editingQuestion, 
   setEditingQuestion,
   handleAddQuestion,
-  handleDeleteQuestion 
+  handleDeleteQuestion,
+  handleUpdateQuestion 
 }: any) => (
   <div className="space-y-6">
     {/* Add New Question */}
@@ -163,14 +295,6 @@ const QuestionsManagement = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            placeholder="Category (e.g., Charging, Performance)"
-            value={newQuestion.category}
-            onChange={(e) => setNewQuestion({...newQuestion, category: e.target.value})}
-          />
-          <div></div>
-        </div>
         <Input
           placeholder="Question"
           value={newQuestion.question}
@@ -204,17 +328,15 @@ const QuestionsManagement = ({
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline">{q.category}</Badge>
-                    <Badge variant={q.active ? 'default' : 'secondary'}>
-                      {q.active ? 'Active' : 'Inactive'}
+                    <Badge variant={q.is_active ? 'default' : 'secondary'}>
+                      {q.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
                   {editingQuestion === q.id ? (
                     <EditQuestionForm 
                       question={q} 
                       onSave={(updated: any) => {
-                        setQuestions(questions.map((qu: any) => qu.id === q.id ? updated : qu));
-                        setEditingQuestion(null);
+                        handleUpdateQuestion(q.id, updated);
                       }}
                       onCancel={() => setEditingQuestion(null)}
                     />
@@ -258,11 +380,6 @@ const EditQuestionForm = ({ question, onSave, onCancel }: any) => {
   return (
     <div className="space-y-3">
       <Input
-        value={editData.category}
-        onChange={(e) => setEditData({...editData, category: e.target.value})}
-        placeholder="Category"
-      />
-      <Input
         value={editData.question}
         onChange={(e) => setEditData({...editData, question: e.target.value})}
         placeholder="Question"
@@ -287,7 +404,7 @@ const EditQuestionForm = ({ question, onSave, onCancel }: any) => {
   );
 };
 
-const QueriesManagement = ({ queries }: { queries: any[] }) => (
+const QueriesManagement = ({ conversations, onResolveConversation }: { conversations: any[], onResolveConversation: (id: string) => void }) => (
   <div className="space-y-6">
     <Card className="shadow-card">
       <CardHeader>
@@ -301,33 +418,43 @@ const QueriesManagement = ({ queries }: { queries: any[] }) => (
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {queries.map((query) => (
-            <div key={query.id} className="border rounded-lg p-4 space-y-3">
+          {conversations.length > 0 ? conversations.map((conversation) => (
+            <div key={conversation.id} className="border rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Customer: {query.customerPhone}</p>
-                  <p className="text-sm text-muted-foreground">{query.timestamp}</p>
+                  <p className="font-medium">Customer: {conversation.profiles?.mobile_number || 'Unknown'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(conversation.created_at).toLocaleDateString()} at {new Date(conversation.created_at).toLocaleTimeString()}
+                  </p>
                 </div>
-                <Badge variant="secondary">{query.status}</Badge>
+                <Badge variant="secondary">{conversation.status}</Badge>
               </div>
               
               <div className="bg-muted/50 p-3 rounded-lg">
-                <p className="text-sm">{query.query}</p>
+                <h4 className="font-medium mb-1">{conversation.title}</h4>
+                {conversation.last_message && (
+                  <p className="text-sm">{conversation.last_message}</p>
+                )}
               </div>
 
               <div className="flex gap-2">
                 <Button variant="electric" size="sm">
-                  Respond
+                  View Conversation
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => onResolveConversation(conversation.id)}
+                >
                   Mark Resolved
-                </Button>
-                <Button variant="ghost" size="sm">
-                  Escalate
                 </Button>
               </div>
             </div>
-          ))}
+          )) : (
+            <p className="text-center text-muted-foreground py-8">
+              No open conversations at the moment.
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

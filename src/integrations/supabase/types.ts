@@ -14,6 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      conversation_messages: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          message: string
+          sender_type: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          message: string
+          sender_type: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          sender_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "support_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      faq_questions: {
+        Row: {
+          answer: string
+          created_at: string
+          id: string
+          is_active: boolean
+          question: string
+          updated_at: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          question: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          question?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           created_at: string
@@ -86,7 +145,9 @@ export type Database = {
       support_conversations: {
         Row: {
           created_at: string
+          faq_question_id: string | null
           id: string
+          is_resolved: boolean
           last_message: string | null
           last_message_at: string | null
           priority: string
@@ -97,7 +158,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          faq_question_id?: string | null
           id?: string
+          is_resolved?: boolean
           last_message?: string | null
           last_message_at?: string | null
           priority?: string
@@ -108,7 +171,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          faq_question_id?: string | null
           id?: string
+          is_resolved?: boolean
           last_message?: string | null
           last_message_at?: string | null
           priority?: string
@@ -117,7 +182,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "support_conversations_faq_question_id_fkey"
+            columns: ["faq_question_id"]
+            isOneToOne: false
+            referencedRelation: "faq_questions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
