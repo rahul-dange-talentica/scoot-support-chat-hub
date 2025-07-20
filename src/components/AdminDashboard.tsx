@@ -18,11 +18,12 @@ import {
   X,
   Send,
   ArrowLeft,
-  LogOut
+  LogOut,
+  User
 } from "lucide-react";
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'questions' | 'queries'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'profile'>('questions');
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
   const [newQuestion, setNewQuestion] = useState({ question: '', answer: '' });
   const [questions, setQuestions] = useState<any[]>([]);
@@ -30,6 +31,7 @@ const AdminDashboard = () => {
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [conversationMessages, setConversationMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [adminProfile, setAdminProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -37,7 +39,29 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchQuestions();
     fetchConversations();
+    fetchAdminProfile();
   }, []);
+
+  const fetchAdminProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching admin profile:', error);
+        } else {
+          setAdminProfile(profile);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching admin profile:', error);
+    }
+  };
 
   const fetchQuestions = async () => {
     try {
@@ -333,6 +357,14 @@ const AdminDashboard = () => {
               <MessageSquare className="h-4 w-4" />
               Customer Queries
             </Button>
+            <Button
+              variant={activeTab === 'profile' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('profile')}
+              className="rounded-none"
+            >
+              <User className="h-4 w-4" />
+              Profile
+            </Button>
           </div>
         </div>
       </nav>
@@ -350,7 +382,7 @@ const AdminDashboard = () => {
             handleDeleteQuestion={handleDeleteQuestion}
             handleUpdateQuestion={handleUpdateQuestion}
           />
-        ) : (
+        ) : activeTab === 'queries' ? (
           <QueriesManagement 
             conversations={conversations} 
             selectedConversation={selectedConversation}
@@ -360,6 +392,11 @@ const AdminDashboard = () => {
             newMessage={newMessage}
             setNewMessage={setNewMessage}
             onSendMessage={handleSendAdminMessage}
+          />
+        ) : (
+          <AdminProfileManagement 
+            adminProfile={adminProfile}
+            onProfileUpdate={fetchAdminProfile}
           />
         )}
       </main>
@@ -651,6 +688,198 @@ const QueriesManagement = ({
               </p>
             )}
           </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const AdminProfileManagement = ({ adminProfile, onProfileUpdate }: { adminProfile: any, onProfileUpdate: () => void }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedProfile, setEditedProfile] = useState({
+    full_name: '',
+    email: '',
+    mobile_number: ''
+  });
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (adminProfile) {
+      setEditedProfile({
+        full_name: adminProfile.full_name || '',
+        email: adminProfile.email || '',
+        mobile_number: adminProfile.mobile_number || ''
+      });
+    }
+  }, [adminProfile]);
+
+  const handleSaveProfile = async () => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: editedProfile.full_name,
+          email: editedProfile.email,
+          mobile_number: editedProfile.mobile_number
+        })
+        .eq('user_id', adminProfile.user_id);
+
+      if (error) {
+        throw error;
+      }
+
+      setIsEditing(false);
+      await onProfileUpdate();
+      
+      toast({
+        title: "Success",
+        description: "Profile updated successfully"
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive"
+      });
+    }
+  };
+
+  if (!adminProfile) {
+    return (
+      <div className="space-y-6">
+        <Card className="shadow-card">
+          <CardContent className="p-8 text-center">
+            <p className="text-muted-foreground">Loading profile...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="shadow-card">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Admin Profile
+              </CardTitle>
+              <CardDescription>
+                Manage your admin account information
+              </CardDescription>
+            </div>
+            {!isEditing && (
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-2"
+              >
+                <Edit2 className="h-4 w-4" />
+                Edit Profile
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isEditing ? (
+            <>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+                  <Input
+                    value={editedProfile.full_name}
+                    onChange={(e) => setEditedProfile({...editedProfile, full_name: e.target.value})}
+                    placeholder="Enter your full name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Email</label>
+                  <Input
+                    type="email"
+                    value={editedProfile.email}
+                    onChange={(e) => setEditedProfile({...editedProfile, email: e.target.value})}
+                    placeholder="Enter your email"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Mobile Number</label>
+                  <Input
+                    value={editedProfile.mobile_number}
+                    onChange={(e) => setEditedProfile({...editedProfile, mobile_number: e.target.value})}
+                    placeholder="Enter your mobile number"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-2 pt-4">
+                <Button onClick={handleSaveProfile} variant="electric">
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => {
+                    setIsEditing(false);
+                    if (adminProfile) {
+                      setEditedProfile({
+                        full_name: adminProfile.full_name || '',
+                        email: adminProfile.email || '',
+                        mobile_number: adminProfile.mobile_number || ''
+                      });
+                    }
+                  }}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+                  <p className="text-sm p-2 bg-muted rounded-md">{adminProfile.full_name || 'Not provided'}</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Email</label>
+                  <p className="text-sm p-2 bg-muted rounded-md">{adminProfile.email || 'Not provided'}</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Mobile Number</label>
+                  <p className="text-sm p-2 bg-muted rounded-md">{adminProfile.mobile_number || 'Not provided'}</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Role</label>
+                  <Badge variant="default" className="w-fit">
+                    {adminProfile.role}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Account Created</label>
+                  <p className="text-sm p-2 bg-muted rounded-md">
+                    {new Date(adminProfile.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
+                  <p className="text-sm p-2 bg-muted rounded-md">
+                    {new Date(adminProfile.updated_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
