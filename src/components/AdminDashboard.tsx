@@ -19,11 +19,13 @@ import {
   Send,
   ArrowLeft,
   LogOut,
-  User
+  User,
+  Package
 } from "lucide-react";
+import { AdminOrderManagement } from "./AdminOrderManagement";
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'profile'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'orders' | 'profile'>('questions');
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
   const [newQuestion, setNewQuestion] = useState({ question: '', answer: '' });
   const [questions, setQuestions] = useState<any[]>([]);
@@ -358,6 +360,14 @@ const AdminDashboard = () => {
               Customer Queries
             </Button>
             <Button
+              variant={activeTab === 'orders' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('orders')}
+              className="rounded-none"
+            >
+              <Package className="h-4 w-4" />
+              Order Management
+            </Button>
+            <Button
               variant={activeTab === 'profile' ? 'default' : 'ghost'}
               onClick={() => setActiveTab('profile')}
               className="rounded-none"
@@ -393,6 +403,8 @@ const AdminDashboard = () => {
             setNewMessage={setNewMessage}
             onSendMessage={handleSendAdminMessage}
           />
+        ) : activeTab === 'orders' ? (
+          <AdminOrderManagement />
         ) : (
           <AdminProfileManagement 
             adminProfile={adminProfile}

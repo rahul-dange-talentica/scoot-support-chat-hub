@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { OrderManagement } from "./OrderManagement";
 
 interface CustomerDashboardProps {
   userProfile: any;
@@ -350,7 +351,7 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
             }}
           />
         ) : (
-          <OrdersView orders={formattedOrders} />
+          <OrderManagement />
         )}
       </main>
     </div>

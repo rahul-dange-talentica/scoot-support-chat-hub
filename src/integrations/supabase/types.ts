@@ -142,6 +142,39 @@ export type Database = {
         }
         Relationships: []
       }
+      scooters: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          is_available: boolean | null
+          model: string
+          name: string
+          price: number
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean | null
+          model: string
+          name: string
+          price: number
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean | null
+          model?: string
+          name?: string
+          price?: number
+        }
+        Relationships: []
+      }
       support_conversations: {
         Row: {
           created_at: string
@@ -150,6 +183,7 @@ export type Database = {
           is_resolved: boolean
           last_message: string | null
           last_message_at: string | null
+          order_id: string | null
           priority: string
           status: string
           title: string
@@ -163,6 +197,7 @@ export type Database = {
           is_resolved?: boolean
           last_message?: string | null
           last_message_at?: string | null
+          order_id?: string | null
           priority?: string
           status?: string
           title: string
@@ -176,6 +211,7 @@ export type Database = {
           is_resolved?: boolean
           last_message?: string | null
           last_message_at?: string | null
+          order_id?: string | null
           priority?: string
           status?: string
           title?: string
@@ -188,6 +224,13 @@ export type Database = {
             columns: ["faq_question_id"]
             isOneToOne: false
             referencedRelation: "faq_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_conversations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
