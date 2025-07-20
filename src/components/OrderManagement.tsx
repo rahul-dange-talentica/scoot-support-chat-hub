@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Package, MessageCircle, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -23,13 +24,20 @@ interface Order {
 
 export const OrderManagement = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [orderNumber, setOrderNumber] = useState('');
+  const [selectedModel, setSelectedModel] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [orderDetails, setOrderDetails] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
   const [isAddOrderOpen, setIsAddOrderOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  const scooterModels = [
+    'Thunder X1 Pro',
+    'Lightning Storm 2024',
+    'Urban Rider Elite',
+    'EcoFlash 600W',
+    'Speedster Max',
+    'City Cruiser Pro'
+  ];
 
   useEffect(() => {
     fetchOrders();
@@ -55,10 +63,10 @@ export const OrderManagement = () => {
   };
 
   const addOrderDetails = async () => {
-    if (!orderNumber.trim() || !deliveryAddress.trim() || !orderDetails.trim() || !totalAmount.trim()) {
+    if (!selectedModel || !deliveryAddress.trim()) {
       toast({
         title: "Error",
-        description: "Please fill in all fields",
+        description: "Please select a model and enter delivery address",
         variant: "destructive",
       });
       return;
@@ -69,12 +77,15 @@ export const OrderManagement = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Generate order number
+      const orderNumber = `SCT-${Date.now()}`;
+
       const orderData = {
         user_id: user.id,
         order_number: orderNumber,
         status: 'pending',
-        total_amount: parseFloat(totalAmount),
-        items: JSON.stringify([{ description: orderDetails }]),
+        total_amount: 0, // Will be updated by admin
+        items: JSON.stringify([{ model: selectedModel }]),
         delivery_address: deliveryAddress
       };
 
@@ -89,10 +100,8 @@ export const OrderManagement = () => {
         description: "Order details added successfully!",
       });
 
-      setOrderNumber('');
+      setSelectedModel('');
       setDeliveryAddress('');
-      setOrderDetails('');
-      setTotalAmount('');
       setIsAddOrderOpen(false);
       fetchOrders();
     } catch (error) {
@@ -181,34 +190,19 @@ export const OrderManagement = () => {
               
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="order-number">Order Number</Label>
-                  <Input
-                    id="order-number"
-                    placeholder="Enter your order number"
-                    value={orderNumber}
-                    onChange={(e) => setOrderNumber(e.target.value)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="order-details">Order Details</Label>
-                  <Textarea
-                    id="order-details"
-                    placeholder="Describe your scooter order (model, specifications, etc.)"
-                    value={orderDetails}
-                    onChange={(e) => setOrderDetails(e.target.value)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="total-amount">Total Amount</Label>
-                  <Input
-                    id="total-amount"
-                    type="number"
-                    placeholder="Enter total amount"
-                    value={totalAmount}
-                    onChange={(e) => setTotalAmount(e.target.value)}
-                  />
+                  <Label htmlFor="model-select">Scooter Model</Label>
+                  <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a scooter model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scooterModels.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 
                 <div className="space-y-2">
