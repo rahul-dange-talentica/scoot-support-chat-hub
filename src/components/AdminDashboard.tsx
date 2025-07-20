@@ -64,19 +64,39 @@ const AdminDashboard = () => {
 
   const fetchConversations = async () => {
     try {
-      const { data, error } = await supabase
+      // First get conversations
+      const { data: conversationsData, error: conversationsError } = await supabase
         .from('support_conversations')
-        .select(`
-          *,
-          profiles!inner(mobile_number, full_name)
-        `)
+        .select('*')
         .eq('is_resolved', false)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching conversations:', error);
+      if (conversationsError) {
+        console.error('Error fetching conversations:', conversationsError);
+        return;
+      }
+
+      // Then get profiles for each conversation
+      if (conversationsData && conversationsData.length > 0) {
+        const userIds = conversationsData.map(conv => conv.user_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, mobile_number, full_name')
+          .in('user_id', userIds);
+
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        }
+
+        // Combine conversations with profile data
+        const conversationsWithProfiles = conversationsData.map(conv => ({
+          ...conv,
+          customer_profile: profilesData?.find(profile => profile.user_id === conv.user_id)
+        }));
+
+        setConversations(conversationsWithProfiles);
       } else {
-        setConversations(data || []);
+        setConversations([]);
       }
     } catch (error) {
       console.error('Unexpected error:', error);
@@ -518,7 +538,7 @@ const QueriesManagement = ({
                 <div>
                   <CardTitle className="text-lg">{selectedConversation.title}</CardTitle>
                   <CardDescription>
-                    Customer: {selectedConversation.profiles?.mobile_number || 'Unknown'} • 
+                    Customer: {selectedConversation.customer_profile?.mobile_number || 'Unknown'} • 
                     Started {new Date(selectedConversation.created_at).toLocaleDateString()}
                   </CardDescription>
                 </div>
@@ -603,7 +623,7 @@ const QueriesManagement = ({
               <div key={conversation.id} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Customer: {conversation.profiles?.mobile_number || 'Unknown'}</p>
+                    <p className="font-medium">Customer: {conversation.customer_profile?.mobile_number || 'Unknown'}</p>
                     <p className="text-sm text-muted-foreground">
                       {new Date(conversation.created_at).toLocaleDateString()} at {new Date(conversation.created_at).toLocaleTimeString()}
                     </p>
