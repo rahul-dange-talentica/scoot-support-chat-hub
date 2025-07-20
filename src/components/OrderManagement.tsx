@@ -22,7 +22,11 @@ interface Order {
   updated_at: string;
 }
 
-export const OrderManagement = () => {
+interface OrderManagementProps {
+  onStartConversation?: (conversationId: string, orderNumber: string) => void;
+}
+
+export const OrderManagement = ({ onStartConversation }: OrderManagementProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderNumber, setOrderNumber] = useState('');
   const [orderDate, setOrderDate] = useState('');
@@ -122,7 +126,7 @@ export const OrderManagement = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { data: conversation, error } = await supabase
         .from('support_conversations')
         .insert([{
           user_id: user.id,
@@ -130,7 +134,9 @@ export const OrderManagement = () => {
           status: 'open',
           priority: 'medium',
           order_id: orderId
-        }]);
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -138,6 +144,11 @@ export const OrderManagement = () => {
         title: "Success",
         description: "Support conversation started",
       });
+
+      // Call the callback to open the conversation view
+      if (onStartConversation && conversation) {
+        onStartConversation(conversation.id, orderNumber);
+      }
     } catch (error) {
       console.error('Error starting conversation:', error);
       toast({

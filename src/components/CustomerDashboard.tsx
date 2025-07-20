@@ -351,7 +351,22 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
             }}
           />
         ) : (
-          <OrderManagement />
+          <OrderManagement 
+            onStartConversation={async (conversationId, orderNumber) => {
+              // Fetch the conversation and switch to support view
+              const { data: conversation, error } = await supabase
+                .from('support_conversations')
+                .select('*')
+                .eq('id', conversationId)
+                .single();
+              
+              if (!error && conversation) {
+                setSelectedConversation(conversation);
+                await fetchConversationMessages(conversation.id);
+                setActiveView('support');
+              }
+            }}
+          />
         )}
       </main>
     </div>
