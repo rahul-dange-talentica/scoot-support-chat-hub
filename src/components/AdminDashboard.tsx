@@ -202,35 +202,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleResolveConversation = async (conversationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('support_conversations')
-        .update({ 
-          is_resolved: true, 
-          status: 'resolved' 
-        })
-        .eq('id', conversationId);
-
-      if (error) {
-        throw error;
-      }
-
-      await fetchConversations();
-      
-      toast({
-        title: "Success",
-        description: "Conversation marked as resolved"
-      });
-    } catch (error) {
-      console.error('Error resolving conversation:', error);
-      toast({
-        title: "Error",
-        description: "Failed to resolve conversation",
-        variant: "destructive"
-      });
-    }
-  };
 
   // Fetch conversation messages
   const fetchConversationMessages = async (conversationId: string) => {
@@ -348,7 +319,6 @@ const AdminDashboard = () => {
         ) : (
           <QueriesManagement 
             conversations={conversations} 
-            onResolveConversation={handleResolveConversation}
             selectedConversation={selectedConversation}
             setSelectedConversation={setSelectedConversation}
             conversationMessages={conversationMessages}
@@ -497,7 +467,6 @@ const EditQuestionForm = ({ question, onSave, onCancel }: any) => {
 
 interface QueriesManagementProps {
   conversations: any[];
-  onResolveConversation: (id: string) => void;
   selectedConversation: any;
   setSelectedConversation: (conversation: any) => void;
   conversationMessages: any[];
@@ -509,7 +478,6 @@ interface QueriesManagementProps {
 
 const QueriesManagement = ({ 
   conversations, 
-  onResolveConversation,
   selectedConversation,
   setSelectedConversation,
   conversationMessages,
@@ -538,16 +506,11 @@ const QueriesManagement = ({
                 <div>
                   <CardTitle className="text-lg">{selectedConversation.title}</CardTitle>
                   <CardDescription>
-                    Customer: {selectedConversation.customer_profile?.mobile_number || 'Unknown'} • 
+                    Customer: {selectedConversation.customer_profile?.full_name || 'Unknown'} ({selectedConversation.customer_profile?.mobile_number}) • 
                     Started {new Date(selectedConversation.created_at).toLocaleDateString()}
                   </CardDescription>
                 </div>
               </div>
-              {!selectedConversation.is_resolved && (
-                <Button onClick={() => onResolveConversation(selectedConversation.id)} variant="outline" size="sm">
-                  Mark as Resolved
-                </Button>
-              )}
             </div>
           </CardHeader>
         </Card>
@@ -623,7 +586,7 @@ const QueriesManagement = ({
               <div key={conversation.id} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Customer: {conversation.customer_profile?.mobile_number || 'Unknown'}</p>
+                    <p className="font-medium">Customer: {conversation.customer_profile?.full_name || 'Unknown'} ({conversation.customer_profile?.mobile_number})</p>
                     <p className="text-sm text-muted-foreground">
                       {new Date(conversation.created_at).toLocaleDateString()} at {new Date(conversation.created_at).toLocaleTimeString()}
                     </p>
@@ -645,13 +608,6 @@ const QueriesManagement = ({
                     onClick={() => handleViewConversation(conversation)}
                   >
                     View Conversation
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => onResolveConversation(conversation.id)}
-                  >
-                    Mark Resolved
                   </Button>
                 </div>
               </div>
