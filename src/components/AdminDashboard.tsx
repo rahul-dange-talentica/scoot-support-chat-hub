@@ -35,6 +35,8 @@ const AdminDashboard = () => {
   const [newMessage, setNewMessage] = useState('');
   const [adminProfile, setAdminProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showResolvedQueries, setShowResolvedQueries] = useState(false);
+  const [selectedCustomerFilter, setSelectedCustomerFilter] = useState<string>('');
   const { toast } = useToast();
 
   // Fetch data from Supabase
@@ -91,11 +93,16 @@ const AdminDashboard = () => {
 
   const fetchConversations = async () => {
     try {
-      // First get conversations
-      const { data: conversationsData, error: conversationsError } = await supabase
+      // First get conversations (show both resolved and unresolved)
+      let query = supabase
         .from('support_conversations')
-        .select('*')
-        .eq('is_resolved', false)
+        .select('*');
+      
+      if (!showResolvedQueries) {
+        query = query.eq('is_resolved', false);
+      }
+      
+      const { data: conversationsData, error: conversationsError } = await query
         .order('created_at', { ascending: false });
 
       if (conversationsError) {
@@ -103,22 +110,34 @@ const AdminDashboard = () => {
         return;
       }
 
-      // Then get profiles for each conversation
+      // Then get profiles and orders for each conversation
       if (conversationsData && conversationsData.length > 0) {
         const userIds = conversationsData.map(conv => conv.user_id);
+        const orderIds = conversationsData.map(conv => conv.order_id).filter(Boolean);
+        
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
-          .select('user_id, mobile_number, full_name')
+          .select('user_id, mobile_number, full_name, email')
           .in('user_id', userIds);
+
+        let ordersData = [];
+        if (orderIds.length > 0) {
+          const { data: orders } = await supabase
+            .from('orders')
+            .select('id, order_number, status, total_amount')
+            .in('id', orderIds);
+          ordersData = orders || [];
+        }
 
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError);
         }
 
-        // Combine conversations with profile data
+        // Combine conversations with profile and order data
         const conversationsWithProfiles = conversationsData.map(conv => ({
           ...conv,
-          customer_profile: profilesData?.find(profile => profile.user_id === conv.user_id)
+          customer_profile: profilesData?.find(profile => profile.user_id === conv.user_id),
+          order_details: conv.order_id ? ordersData.find(order => order.id === conv.order_id) : null
         }));
 
         setConversations(conversationsWithProfiles);
@@ -402,6 +421,11 @@ const AdminDashboard = () => {
             newMessage={newMessage}
             setNewMessage={setNewMessage}
             onSendMessage={handleSendAdminMessage}
+            showResolvedQueries={showResolvedQueries}
+            setShowResolvedQueries={setShowResolvedQueries}
+            selectedCustomerFilter={selectedCustomerFilter}
+            setSelectedCustomerFilter={setSelectedCustomerFilter}
+            onRefreshConversations={fetchConversations}
           />
         ) : activeTab === 'orders' ? (
           <AdminOrderManagement />
@@ -557,6 +581,11 @@ interface QueriesManagementProps {
   newMessage: string;
   setNewMessage: (message: string) => void;
   onSendMessage: () => void;
+  showResolvedQueries: boolean;
+  setShowResolvedQueries: (show: boolean) => void;
+  selectedCustomerFilter: string;
+  setSelectedCustomerFilter: (filter: string) => void;
+  onRefreshConversations: () => void;
 }
 
 const QueriesManagement = ({ 
@@ -567,7 +596,12 @@ const QueriesManagement = ({
   fetchConversationMessages,
   newMessage,
   setNewMessage,
-  onSendMessage
+  onSendMessage,
+  showResolvedQueries,
+  setShowResolvedQueries,
+  selectedCustomerFilter,
+  setSelectedCustomerFilter,
+  onRefreshConversations
 }: QueriesManagementProps) => {
   
   const handleViewConversation = (conversation: any) => {
@@ -651,30 +685,91 @@ const QueriesManagement = ({
     );
   }
 
+  // Get unique customers for filter
+  const uniqueCustomers = Array.from(new Set(
+    conversations.map(conv => conv.customer_profile?.full_name).filter(Boolean)
+  )).map(name => ({ 
+    name, 
+    conversation: conversations.find(conv => conv.customer_profile?.full_name === name)
+  }));
+
+  // Filter conversations based on selected customer
+  const filteredConversations = selectedCustomerFilter 
+    ? conversations.filter(conv => conv.customer_profile?.full_name === selectedCustomerFilter)
+    : conversations;
+
   return (
     <div className="space-y-6">
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Pending Customer Queries
-          </CardTitle>
-          <CardDescription>
-            Review and respond to customer questions that need human attention
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Customer Queries
+              </CardTitle>
+              <CardDescription>
+                Review and respond to customer questions that need human attention
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={showResolvedQueries ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setShowResolvedQueries(!showResolvedQueries);
+                  onRefreshConversations();
+                }}
+              >
+                {showResolvedQueries ? "Hide Resolved" : "Show Resolved"}
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {conversations.length > 0 ? conversations.map((conversation) => (
+            {/* Customer Filter */}
+            <div className="flex gap-4 items-center">
+              <label className="text-sm font-medium">Filter by Customer:</label>
+              <select 
+                className="px-3 py-2 border rounded-md bg-background"
+                value={selectedCustomerFilter}
+                onChange={(e) => setSelectedCustomerFilter(e.target.value)}
+              >
+                <option value="">All Customers</option>
+                {uniqueCustomers.map((customer) => (
+                  <option key={customer.name} value={customer.name}>
+                    {customer.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {filteredConversations.length > 0 ? filteredConversations.map((conversation) => (
               <div key={conversation.id} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Customer: {conversation.customer_profile?.full_name || 'Unknown'} ({conversation.customer_profile?.mobile_number})</p>
+                  <div className="space-y-1">
+                    <p className="font-medium">
+                      Customer: {conversation.customer_profile?.full_name || 'Unknown'} 
+                      ({conversation.customer_profile?.mobile_number})
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Email: {conversation.customer_profile?.email || 'N/A'}
+                    </p>
+                    {conversation.order_details && (
+                      <p className="text-sm text-muted-foreground">
+                        Order: {conversation.order_details.order_number} - ${conversation.order_details.total_amount} ({conversation.order_details.status})
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       {new Date(conversation.created_at).toLocaleDateString()} at {new Date(conversation.created_at).toLocaleTimeString()}
                     </p>
                   </div>
-                  <Badge variant="secondary">{conversation.status}</Badge>
+                  <div className="flex gap-2">
+                    <Badge variant={conversation.is_resolved ? "default" : "secondary"}>
+                      {conversation.is_resolved ? "Resolved" : conversation.status}
+                    </Badge>
+                  </div>
                 </div>
                 
                 <div className="bg-muted/50 p-3 rounded-lg">

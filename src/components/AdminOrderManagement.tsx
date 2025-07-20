@@ -115,26 +115,25 @@ export const AdminOrderManagement = () => {
     }
   };
 
+  const [orderConversations, setOrderConversations] = useState<any[]>([]);
+  const [showConversationsDialog, setShowConversationsDialog] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+
   const viewConversations = async (orderId: string) => {
     try {
       const { data, error } = await supabase
         .from('support_conversations')
-        .select('*')
+        .select(`
+          *,
+          profiles:user_id (full_name, mobile_number, email)
+        `)
         .eq('order_id', orderId);
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
-        toast({
-          title: "Info",
-          description: `Found ${data.length} conversation(s) for this order`,
-        });
-      } else {
-        toast({
-          title: "Info",
-          description: "No conversations found for this order",
-        });
-      }
+      setOrderConversations(data || []);
+      setSelectedOrderId(orderId);
+      setShowConversationsDialog(true);
     } catch (error) {
       console.error('Error fetching conversations:', error);
       toast({
@@ -200,7 +199,7 @@ export const AdminOrderManagement = () => {
                             onClick={() => viewConversations(order.id)}
                           >
                             <MessageCircle className="h-4 w-4 mr-2" />
-                            Conversations
+                            View Conversations
                           </Button>
                           <Dialog>
                             <DialogTrigger asChild>
@@ -289,6 +288,61 @@ export const AdminOrderManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Conversations Dialog */}
+      <Dialog open={showConversationsDialog} onOpenChange={setShowConversationsDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Order Conversations</DialogTitle>
+            <DialogDescription>
+              All support conversations for this order (both pending and resolved)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {orderConversations.length > 0 ? (
+              orderConversations.map((conversation) => (
+                <Card key={conversation.id} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">{conversation.title}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          By: {conversation.profiles?.full_name || 'Unknown'} 
+                          ({conversation.profiles?.mobile_number || 'N/A'})
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(conversation.created_at).toLocaleDateString()} at {' '}
+                          {new Date(conversation.created_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge variant={conversation.is_resolved ? "default" : "secondary"}>
+                          {conversation.is_resolved ? "Resolved" : conversation.status}
+                        </Badge>
+                        <Badge variant="outline">{conversation.priority}</Badge>
+                      </div>
+                    </div>
+                    {conversation.last_message && (
+                      <div className="bg-muted/50 p-3 rounded-lg">
+                        <p className="text-sm">{conversation.last_message}</p>
+                        {conversation.last_message_at && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Last updated: {new Date(conversation.last_message_at).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                No conversations found for this order.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
