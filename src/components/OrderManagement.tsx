@@ -24,6 +24,8 @@ interface Order {
 
 export const OrderManagement = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderNumber, setOrderNumber] = useState('');
+  const [orderDate, setOrderDate] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [isAddOrderOpen, setIsAddOrderOpen] = useState(false);
@@ -63,10 +65,10 @@ export const OrderManagement = () => {
   };
 
   const addOrderDetails = async () => {
-    if (!selectedModel || !deliveryAddress.trim()) {
+    if (!orderNumber.trim() || !orderDate || !selectedModel || !deliveryAddress.trim()) {
       toast({
         title: "Error",
-        description: "Please select a model and enter delivery address",
+        description: "Please fill in all required fields",
         variant: "destructive",
       });
       return;
@@ -77,15 +79,12 @@ export const OrderManagement = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Generate order number
-      const orderNumber = `SCT-${Date.now()}`;
-
       const orderData = {
         user_id: user.id,
         order_number: orderNumber,
         status: 'pending',
         total_amount: 0, // Will be updated by admin
-        items: JSON.stringify([{ model: selectedModel }]),
+        items: JSON.stringify([{ model: selectedModel, order_date: orderDate }]),
         delivery_address: deliveryAddress
       };
 
@@ -100,6 +99,8 @@ export const OrderManagement = () => {
         description: "Order details added successfully!",
       });
 
+      setOrderNumber('');
+      setOrderDate('');
       setSelectedModel('');
       setDeliveryAddress('');
       setIsAddOrderOpen(false);
@@ -189,6 +190,26 @@ export const OrderManagement = () => {
               </DialogHeader>
               
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="order-number">Order Number</Label>
+                  <Input
+                    id="order-number"
+                    placeholder="Enter your order number"
+                    value={orderNumber}
+                    onChange={(e) => setOrderNumber(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="order-date">Order Date</Label>
+                  <Input
+                    id="order-date"
+                    type="date"
+                    value={orderDate}
+                    onChange={(e) => setOrderDate(e.target.value)}
+                  />
+                </div>
+                
                 <div className="space-y-2">
                   <Label htmlFor="model-select">Scooter Model</Label>
                   <Select value={selectedModel} onValueChange={setSelectedModel}>
