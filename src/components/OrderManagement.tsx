@@ -32,6 +32,7 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
   const [orderDate, setOrderDate] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [orderPrice, setOrderPrice] = useState('');
   const [isAddOrderOpen, setIsAddOrderOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [faqQuestions, setFaqQuestions] = useState<any[]>([]);
@@ -91,10 +92,19 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
   };
 
   const addOrderDetails = async () => {
-    if (!orderNumber.trim() || !orderDate || !selectedModel || !deliveryAddress.trim()) {
+    if (!orderNumber.trim() || !orderDate || !selectedModel || !deliveryAddress.trim() || !orderPrice.trim()) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isNaN(Number(orderPrice)) || Number(orderPrice) <= 0) {
+      toast({
+        title: "Error", 
+        description: "Please enter a valid price",
         variant: "destructive",
       });
       return;
@@ -109,7 +119,7 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
         user_id: user.id,
         order_number: orderNumber,
         status: 'pending',
-        total_amount: 0, // Will be updated by admin
+        total_amount: Number(orderPrice),
         items: JSON.stringify([{ model: selectedModel, order_date: orderDate }]),
         delivery_address: deliveryAddress
       };
@@ -129,6 +139,7 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
       setOrderDate('');
       setSelectedModel('');
       setDeliveryAddress('');
+      setOrderPrice('');
       setIsAddOrderOpen(false);
       fetchOrders();
     } catch (error) {
@@ -302,6 +313,19 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
                 </div>
                 
                 <div className="space-y-2">
+                  <Label htmlFor="order-price">Price (INR)</Label>
+                  <Input
+                    id="order-price"
+                    type="number"
+                    placeholder="Enter order price in INR"
+                    value={orderPrice}
+                    onChange={(e) => setOrderPrice(e.target.value)}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                
+                <div className="space-y-2">
                   <Label htmlFor="delivery-address">Delivery Address</Label>
                   <Textarea
                     id="delivery-address"
@@ -351,7 +375,7 @@ export const OrderManagement = ({ onStartConversation }: OrderManagementProps) =
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Total: ${order.total_amount}
+                        Total: ₹{order.total_amount}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Items: {typeof order.items === 'string' ? JSON.parse(order.items).length : order.items?.length || 0} scooter(s)

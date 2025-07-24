@@ -311,7 +311,7 @@ export const AdminOrderManagement = () => {
                         <div className="space-y-2">
                           <h5 className="font-medium">Order Details</h5>
                           <p className="text-sm text-muted-foreground">
-                            Total: ${order.total_amount}
+                            Total: ₹{order.total_amount}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Items: {orderItems.length} scooter(s)

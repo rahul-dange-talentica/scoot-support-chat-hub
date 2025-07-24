@@ -385,75 +385,207 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
   );
 };
 
-const ProfileView = ({ userProfile }: { userProfile: any }) => (
-  <div className="space-y-6">
-    <Card className="shadow-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <User className="h-5 w-5" />
-          Profile Information
-        </CardTitle>
-        <CardDescription>
-          View and manage your account details
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Full Name</Label>
-            <Input 
-              id="fullName" 
-              value={userProfile?.full_name || ''} 
-              readOnly 
-              className="bg-muted/50"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <Input 
-                id="email" 
-                value={userProfile?.email || 'Not provided'} 
-                readOnly 
-                className="bg-muted/50"
-              />
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="mobile">Mobile Number</Label>
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <Input 
-                id="mobile" 
-                value={userProfile?.mobile_number || ''} 
-                readOnly 
-                className="bg-muted/50"
-              />
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="role">Account Type</Label>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="capitalize">
-                {userProfile?.role || 'Customer'}
-              </Badge>
-            </div>
-          </div>
-        </div>
+const ProfileView = ({ userProfile }: { userProfile: any }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedProfile, setEditedProfile] = useState({
+    full_name: '',
+    email: '',
+    mobile_number: ''
+  });
+  const { toast } = useToast();
 
-        <div className="pt-4 border-t">
-          <p className="text-sm text-muted-foreground">
-            Profile information is managed during signup. Contact support if you need to update your details.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  </div>
-);
+  useEffect(() => {
+    if (userProfile) {
+      setEditedProfile({
+        full_name: userProfile.full_name || '',
+        email: userProfile.email || '',
+        mobile_number: userProfile.mobile_number || ''
+      });
+    }
+  }, [userProfile]);
+
+  const handleSaveProfile = async () => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: editedProfile.full_name,
+          email: editedProfile.email,
+          mobile_number: editedProfile.mobile_number
+        })
+        .eq('user_id', userProfile.user_id);
+
+      if (error) {
+        throw error;
+      }
+
+      setIsEditing(false);
+      
+      toast({
+        title: "Success",
+        description: "Profile updated successfully. Please refresh the page to see changes."
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive"
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="shadow-card">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Profile Information
+              </CardTitle>
+              <CardDescription>
+                View and manage your account details
+              </CardDescription>
+            </div>
+            {!isEditing && (
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-2"
+              >
+                <User className="h-4 w-4" />
+                Edit Profile
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isEditing ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-fullName">Full Name</Label>
+                  <Input
+                    id="edit-fullName"
+                    value={editedProfile.full_name}
+                    onChange={(e) => setEditedProfile({...editedProfile, full_name: e.target.value})}
+                    placeholder="Enter your full name"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="edit-email"
+                      type="email"
+                      value={editedProfile.email}
+                      onChange={(e) => setEditedProfile({...editedProfile, email: e.target.value})}
+                      placeholder="Enter your email"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-mobile">Mobile Number</Label>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="edit-mobile"
+                      value={editedProfile.mobile_number}
+                      onChange={(e) => setEditedProfile({...editedProfile, mobile_number: e.target.value})}
+                      placeholder="Enter your mobile number"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-2 pt-4">
+                <Button onClick={handleSaveProfile} variant="default">
+                  <User className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsEditing(false);
+                    if (userProfile) {
+                      setEditedProfile({
+                        full_name: userProfile.full_name || '',
+                        email: userProfile.email || '',
+                        mobile_number: userProfile.mobile_number || ''
+                      });
+                    }
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input 
+                  id="fullName" 
+                  value={userProfile?.full_name || ''} 
+                  readOnly 
+                  className="bg-muted/50"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    id="email" 
+                    value={userProfile?.email || 'Not provided'} 
+                    readOnly 
+                    className="bg-muted/50"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="mobile">Mobile Number</Label>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    id="mobile" 
+                    value={userProfile?.mobile_number || ''} 
+                    readOnly 
+                    className="bg-muted/50"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="role">Account Type</Label>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="capitalize">
+                    {userProfile?.role || 'Customer'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!isEditing && (
+            <div className="pt-4 border-t">
+              <p className="text-sm text-muted-foreground">
+                You can now edit your profile information. Click "Edit Profile" to make changes.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 interface SupportViewProps {
   recentChats: any[];

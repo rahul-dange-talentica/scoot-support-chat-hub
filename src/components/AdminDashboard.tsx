@@ -804,7 +804,7 @@ const QueriesManagement = ({
                     </p>
                     {conversation.order_details && (
                       <p className="text-sm text-muted-foreground">
-                        Order: {conversation.order_details.order_number} - ${conversation.order_details.total_amount} ({conversation.order_details.status})
+                        Order: {conversation.order_details.order_number} - ₹{conversation.order_details.total_amount} ({conversation.order_details.status})
                       </p>
                     )}
                     <p className="text-sm text-muted-foreground">
