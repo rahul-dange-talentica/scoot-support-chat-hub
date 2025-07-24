@@ -25,7 +25,7 @@ import {
 import { AdminOrderManagement } from "./AdminOrderManagement";
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'orders' | 'profile'>('profile');
+  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'orders' | 'profile' | 'customers'>('profile');
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
   const [newQuestion, setNewQuestion] = useState({ question: '', answer: '' });
   const [questions, setQuestions] = useState<any[]>([]);
@@ -34,6 +34,7 @@ const AdminDashboard = () => {
   const [conversationMessages, setConversationMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [adminProfile, setAdminProfile] = useState<any>(null);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showResolvedQueries, setShowResolvedQueries] = useState(false);
   const [selectedCustomerFilter, setSelectedCustomerFilter] = useState<string>('');
@@ -44,6 +45,7 @@ const AdminDashboard = () => {
     fetchQuestions();
     fetchConversations();
     fetchAdminProfile();
+    fetchCustomers();
   }, []);
 
   const fetchAdminProfile = async () => {
@@ -64,6 +66,29 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching admin profile:', error);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'customer')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching customers:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch customers",
+          variant: "destructive"
+        });
+      } else {
+        setCustomers(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error:', error);
     }
   };
 
@@ -394,6 +419,14 @@ const AdminDashboard = () => {
               <Package className="h-4 w-4" />
               Order Management
             </Button>
+            <Button
+              variant={activeTab === 'customers' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('customers')}
+              className="rounded-none"
+            >
+              <Users className="h-4 w-4" />
+              Customers
+            </Button>
           </div>
         </div>
       </nav>
@@ -429,6 +462,11 @@ const AdminDashboard = () => {
           />
         ) : activeTab === 'orders' ? (
           <AdminOrderManagement />
+        ) : activeTab === 'customers' ? (
+          <CustomersManagement 
+            customers={customers}
+            onRefreshCustomers={fetchCustomers}
+          />
         ) : (
           <AdminProfileManagement 
             adminProfile={adminProfile}
@@ -987,6 +1025,84 @@ const AdminProfileManagement = ({ adminProfile, onProfileUpdate }: { adminProfil
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const CustomersManagement = ({ customers, onRefreshCustomers }: { customers: any[], onRefreshCustomers: () => void }) => {
+  return (
+    <div className="space-y-6">
+      <Card className="shadow-card">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Customer Profiles
+              </CardTitle>
+              <CardDescription>
+                View and manage all customer accounts
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={onRefreshCustomers}
+              className="flex items-center gap-2"
+            >
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {customers.length > 0 ? customers.map((customer) => (
+              <div key={customer.id} className="border rounded-lg p-4 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+                    <p className="text-sm">{customer.full_name || 'Not provided'}</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Email</label>
+                    <p className="text-sm">{customer.email || 'Not provided'}</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Mobile Number</label>
+                    <p className="text-sm">{customer.mobile_number || 'Not provided'}</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Role</label>
+                    <Badge variant="secondary" className="w-fit">
+                      {customer.role}
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Joined</label>
+                    <p className="text-sm">
+                      {new Date(customer.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
+                    <p className="text-sm">
+                      {new Date(customer.updated_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <p className="text-center text-muted-foreground py-8">
+                No customers found.
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
