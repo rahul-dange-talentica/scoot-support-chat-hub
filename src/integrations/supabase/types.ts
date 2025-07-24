@@ -18,6 +18,10 @@ export type Database = {
         Row: {
           conversation_id: string
           created_at: string
+          file_name: string | null
+          file_size: number | null
+          file_type: string | null
+          file_url: string | null
           id: string
           message: string
           sender_type: string
@@ -25,6 +29,10 @@ export type Database = {
         Insert: {
           conversation_id: string
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           message: string
           sender_type: string
@@ -32,6 +40,10 @@ export type Database = {
         Update: {
           conversation_id?: string
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           message?: string
           sender_type?: string

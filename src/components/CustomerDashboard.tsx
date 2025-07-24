@@ -17,11 +17,15 @@ import {
   Phone,
   Mail,
   Send,
-  ArrowLeft
+  ArrowLeft,
+  FileImage,
+  Video,
+  Download
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { OrderManagement } from "./OrderManagement";
+import { FileUpload } from "./FileUpload";
 
 interface CustomerDashboardProps {
   userProfile: any;
@@ -195,25 +199,34 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
     }
   };
 
-  // Send a new message
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation) return;
+  // Send a new message with optional file attachment
+  const handleSendMessage = async (fileUrl?: string, fileName?: string, fileType?: string, fileSize?: number) => {
+    if (!newMessage.trim() && !fileUrl || !selectedConversation) return;
 
     try {
+      const messageData: any = {
+        conversation_id: selectedConversation.id,
+        sender_type: 'customer',
+        message: newMessage || (fileUrl ? 'File attachment' : '')
+      };
+
+      if (fileUrl) {
+        messageData.file_url = fileUrl;
+        messageData.file_name = fileName;
+        messageData.file_type = fileType;
+        messageData.file_size = fileSize;
+      }
+
       // Add user message
       await supabase
         .from('conversation_messages')
-        .insert({
-          conversation_id: selectedConversation.id,
-          sender_type: 'customer',
-          message: newMessage
-        });
+        .insert(messageData);
 
       // Update conversation
       await supabase
         .from('support_conversations')
         .update({
-          last_message: newMessage,
+          last_message: newMessage || `📎 ${fileName}`,
           last_message_at: new Date().toISOString()
         })
         .eq('id', selectedConversation.id);
@@ -223,7 +236,7 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
       
       toast({
         title: "Message sent",
-        description: "Your message has been sent to support",
+        description: fileUrl ? "Your message with file attachment has been sent" : "Your message has been sent to support",
       });
     } catch (error) {
       console.error('Error sending message:', error);
@@ -594,7 +607,7 @@ interface SupportViewProps {
   selectedConversation: any;
   conversationMessages: any[];
   onBackToList: () => void;
-  onSendMessage: () => void;
+  onSendMessage: (fileUrl?: string, fileName?: string, fileType?: string, fileSize?: number) => void;
   newMessage: string;
   setNewMessage: (message: string) => void;
   onResolveConversation: () => void;
@@ -739,16 +752,74 @@ const SupportView = ({
                         ? 'bg-primary text-primary-foreground' 
                         : 'bg-muted'
                     }`}
-                  >
-                    <p className="text-sm">{message.message}</p>
-                    <p className={`text-xs mt-1 ${
-                      message.sender_type === 'customer' 
-                        ? 'text-primary-foreground/70' 
-                        : 'text-muted-foreground'
-                    }`}>
-                      {new Date(message.created_at).toLocaleTimeString()}
-                    </p>
-                  </div>
+                   >
+                     {message.message && <p className="text-sm">{message.message}</p>}
+                     {message.file_url && (
+                       <div className="mt-2">
+                         {message.file_type?.startsWith('image/') ? (
+                           <div className="space-y-2">
+                             <img 
+                               src={message.file_url} 
+                               alt={message.file_name} 
+                               className="max-w-48 max-h-48 rounded-lg object-cover"
+                             />
+                             <div className="flex items-center gap-2 text-xs">
+                               <FileImage className="h-3 w-3" />
+                               <span>{message.file_name}</span>
+                               <Button 
+                                 variant="ghost" 
+                                 size="sm" 
+                                 className="h-auto p-1"
+                                 onClick={() => window.open(message.file_url, '_blank')}
+                               >
+                                 <Download className="h-3 w-3" />
+                               </Button>
+                             </div>
+                           </div>
+                         ) : message.file_type?.startsWith('video/') ? (
+                           <div className="space-y-2">
+                             <video 
+                               src={message.file_url} 
+                               controls 
+                               className="max-w-48 max-h-48 rounded-lg"
+                             />
+                             <div className="flex items-center gap-2 text-xs">
+                               <Video className="h-3 w-3" />
+                               <span>{message.file_name}</span>
+                               <Button 
+                                 variant="ghost" 
+                                 size="sm" 
+                                 className="h-auto p-1"
+                                 onClick={() => window.open(message.file_url, '_blank')}
+                               >
+                                 <Download className="h-3 w-3" />
+                               </Button>
+                             </div>
+                           </div>
+                         ) : (
+                           <div className="flex items-center gap-2 text-xs p-2 bg-background/10 rounded">
+                             <FileImage className="h-3 w-3" />
+                             <span>{message.file_name}</span>
+                             <Button 
+                               variant="ghost" 
+                               size="sm" 
+                               className="h-auto p-1"
+                               onClick={() => window.open(message.file_url, '_blank')}
+                             >
+                               <Download className="h-3 w-3" />
+                             </Button>
+                           </div>
+                         )}
+                       </div>
+                     )}
+                     <p className={`text-xs mt-1 ${
+                       message.sender_type === 'customer' 
+                         ? 'text-primary-foreground/70' 
+                         : 'text-muted-foreground'
+                     }`}>
+                       {new Date(message.created_at).toLocaleTimeString()}
+                     </p>
+                   </div>
                 </div>
               ))}
             </div>
@@ -758,18 +829,24 @@ const SupportView = ({
         {/* Message Input */}
         {!selectedConversation.is_resolved && (
           <Card className="shadow-card">
-            <CardContent className="p-4">
+            <CardContent className="p-4 space-y-3">
               <div className="flex gap-2">
                 <Input
                   placeholder="Type your follow-up question..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && onSendMessage()}
+                  onKeyPress={(e) => e.key === 'Enter' && !newMessage.trim() ? null : onSendMessage()}
                 />
-                <Button onClick={onSendMessage} disabled={!newMessage.trim()}>
+                <Button onClick={() => onSendMessage()} disabled={!newMessage.trim()}>
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
+              <FileUpload
+                onFileUploaded={(fileUrl, fileName, fileType, fileSize) => 
+                  onSendMessage(fileUrl, fileName, fileType, fileSize)
+                }
+                disabled={selectedConversation.is_resolved}
+              />
             </CardContent>
           </Card>
         )}
