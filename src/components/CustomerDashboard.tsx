@@ -835,7 +835,11 @@ const SupportView = ({
                   placeholder="Type your follow-up question..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && !newMessage.trim() ? null : onSendMessage()}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && newMessage.trim()) {
+                      onSendMessage();
+                    }
+                  }}
                 />
                 <Button onClick={() => onSendMessage()} disabled={!newMessage.trim()}>
                   <Send className="h-4 w-4" />
