@@ -124,7 +124,10 @@ const AdminDashboard = () => {
         .from('support_conversations')
         .select('*');
       
-      if (!showResolvedQueries) {
+      if (showResolvedQueries) {
+        // Show all conversations (both resolved and unresolved)
+      } else {
+        // Show only unresolved conversations
         query = query.eq('is_resolved', false);
       }
       
@@ -367,6 +370,10 @@ const AdminDashboard = () => {
               <h1 className="text-xl font-bold">Admin Dashboard</h1>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">Hello {adminProfile?.full_name || 'Admin'}</span>
+              </div>
               <Badge variant="secondary">
                 EcoRide Support Admin
               </Badge>
@@ -397,12 +404,12 @@ const AdminDashboard = () => {
               Profile
             </Button>
             <Button
-              variant={activeTab === 'questions' ? 'default' : 'ghost'}
-              onClick={() => setActiveTab('questions')}
+              variant={activeTab === 'customers' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('customers')}
               className="rounded-none"
             >
-              <HelpCircle className="h-4 w-4" />
-              FAQ Management
+              <Users className="h-4 w-4" />
+              Customers
             </Button>
             <Button
               variant={activeTab === 'queries' ? 'default' : 'ghost'}
@@ -421,12 +428,12 @@ const AdminDashboard = () => {
               Order Management
             </Button>
             <Button
-              variant={activeTab === 'customers' ? 'default' : 'ghost'}
-              onClick={() => setActiveTab('customers')}
+              variant={activeTab === 'questions' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('questions')}
               className="rounded-none"
             >
-              <Users className="h-4 w-4" />
-              Customers
+              <HelpCircle className="h-4 w-4" />
+              FAQ Management
             </Button>
           </div>
         </div>
