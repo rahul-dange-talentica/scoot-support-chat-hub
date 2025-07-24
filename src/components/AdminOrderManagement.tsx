@@ -27,6 +27,9 @@ interface Order {
 
 export const AdminOrderManagement = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [newStatus, setNewStatus] = useState('');
@@ -34,7 +37,12 @@ export const AdminOrderManagement = () => {
 
   useEffect(() => {
     fetchOrders();
+    fetchCustomers();
   }, []);
+
+  useEffect(() => {
+    filterOrders();
+  }, [selectedCustomer, allOrders]);
 
   const fetchOrders = async () => {
     try {
@@ -62,6 +70,7 @@ export const AdminOrderManagement = () => {
         })
       );
       
+      setAllOrders(ordersWithProfiles as any);
       setOrders(ordersWithProfiles as any);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -70,6 +79,29 @@ export const AdminOrderManagement = () => {
         description: "Failed to load orders",
         variant: "destructive",
       });
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email, mobile_number')
+        .eq('role', 'customer')
+        .order('full_name');
+      
+      if (error) throw error;
+      setCustomers(data || []);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    }
+  };
+
+  const filterOrders = () => {
+    if (selectedCustomer === 'all') {
+      setOrders(allOrders);
+    } else {
+      setOrders(allOrders.filter(order => order.user_id === selectedCustomer));
     }
   };
 
@@ -165,8 +197,31 @@ export const AdminOrderManagement = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <div className="flex gap-4 items-center">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Filter by Customer</label>
+                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                  <SelectTrigger className="w-64">
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Customers</SelectItem>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.user_id} value={customer.user_id}>
+                        {customer.full_name} ({customer.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          
           {orders.length === 0 ? (
-            <p className="text-muted-foreground">No orders found</p>
+            <p className="text-muted-foreground">
+              {selectedCustomer === 'all' ? 'No orders found' : 'No orders found for selected customer'}
+            </p>
           ) : (
             <div className="space-y-4">
               {orders.map((order) => {

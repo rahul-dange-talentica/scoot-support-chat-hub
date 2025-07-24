@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -750,17 +751,18 @@ const QueriesManagement = ({
                 Review and respond to customer questions that need human attention
               </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant={showResolvedQueries ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setShowResolvedQueries(!showResolvedQueries);
+            <div className="flex gap-2 items-center">
+              <label htmlFor="show-resolved" className="text-sm font-medium">
+                Show Resolved
+              </label>
+              <Switch
+                id="show-resolved"
+                checked={showResolvedQueries}
+                onCheckedChange={(checked) => {
+                  setShowResolvedQueries(checked);
                   onRefreshConversations();
                 }}
-              >
-                {showResolvedQueries ? "Hide Resolved" : "Show Resolved"}
-              </Button>
+              />
             </div>
           </div>
         </CardHeader>
