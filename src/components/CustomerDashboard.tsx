@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { 
   MessageCircle, 
   Package, 
@@ -36,6 +37,7 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
   const [conversationMessages, setConversationMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showResolvedConversations, setShowResolvedConversations] = useState(false);
   const { toast } = useToast();
 
   // Helper function to format time ago
@@ -89,10 +91,18 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
         }
 
         // Fetch support conversations
-        const { data: conversations, error: conversationsError } = await supabase
+        let conversationsQuery = supabase
           .from('support_conversations')
           .select('*')
-          .eq('user_id', userProfile.user_id)
+          .eq('user_id', userProfile.user_id);
+        
+        if (!showResolvedConversations) {
+          // When toggle is OFF: show only unresolved conversations
+          conversationsQuery = conversationsQuery.eq('is_resolved', false);
+        }
+        // When toggle is ON: show all conversations (no filter needed)
+        
+        const { data: conversations, error: conversationsError } = await conversationsQuery
           .order('created_at', { ascending: false })
           .limit(10);
 
@@ -122,7 +132,7 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
     };
 
     fetchData();
-  }, [userProfile?.user_id]);
+  }, [userProfile?.user_id, showResolvedConversations]);
 
   // Handle FAQ question selection
   const handleFaqQuestion = async (question: any) => {
@@ -349,6 +359,8 @@ const CustomerDashboard = ({ userProfile, onLogout }: CustomerDashboardProps) =>
               setSelectedConversation(conv);
               fetchConversationMessages(conv.id);
             }}
+            showResolvedConversations={showResolvedConversations}
+            setShowResolvedConversations={setShowResolvedConversations}
           />
         ) : (
           <OrderManagement 
@@ -455,6 +467,8 @@ interface SupportViewProps {
   setNewMessage: (message: string) => void;
   onResolveConversation: () => void;
   onSelectConversation: (conv: any) => void;
+  showResolvedConversations: boolean;
+  setShowResolvedConversations: (show: boolean) => void;
 }
 
 const SupportView = ({ 
@@ -468,7 +482,9 @@ const SupportView = ({
   newMessage, 
   setNewMessage, 
   onResolveConversation,
-  onSelectConversation
+  onSelectConversation,
+  showResolvedConversations,
+  setShowResolvedConversations
 }: SupportViewProps) => {
   const [showNewConversationDialog, setShowNewConversationDialog] = useState(false);
   const [selectedFAQ, setSelectedFAQ] = useState<any>(null);
@@ -643,10 +659,22 @@ const SupportView = ({
               View your past conversations or start a new one
             </CardDescription>
           </div>
-          <Button onClick={() => setShowNewConversationDialog(true)}>
-            <MessageCircle className="h-4 w-4 mr-2" />
-            New Conversation
-          </Button>
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2 items-center">
+              <label htmlFor="show-resolved-customer" className="text-sm font-medium">
+                Show Resolved
+              </label>
+              <Switch
+                id="show-resolved-customer"
+                checked={showResolvedConversations}
+                onCheckedChange={setShowResolvedConversations}
+              />
+            </div>
+            <Button onClick={() => setShowNewConversationDialog(true)}>
+              <MessageCircle className="h-4 w-4 mr-2" />
+              New Conversation
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {recentChats.length > 0 ? (
