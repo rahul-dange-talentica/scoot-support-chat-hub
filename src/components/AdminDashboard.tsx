@@ -124,12 +124,11 @@ const AdminDashboard = () => {
         .from('support_conversations')
         .select('*');
       
-      if (showResolvedQueries) {
-        // Show all conversations (both resolved and unresolved)
-      } else {
-        // Show only unresolved conversations
+      if (!showResolvedQueries) {
+        // When toggle is OFF: show only unresolved conversations
         query = query.eq('is_resolved', false);
       }
+      // When toggle is ON: show all conversations (no filter needed)
       
       const { data: conversationsData, error: conversationsError } = await query
         .order('created_at', { ascending: false });
