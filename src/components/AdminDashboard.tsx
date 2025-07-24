@@ -21,12 +21,15 @@ import {
   ArrowLeft,
   LogOut,
   User,
-  Package
+  Package,
+  FileImage,
+  Video,
+  Download
 } from "lucide-react";
 import { AdminOrderManagement } from "./AdminOrderManagement";
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'orders' | 'profile' | 'customers'>('profile');
+  const [activeTab, setActiveTab] = useState<'questions' | 'queries' | 'orders' | 'profile' | 'customers'>('queries');
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
   const [newQuestion, setNewQuestion] = useState({ question: '', answer: '' });
   const [questions, setQuestions] = useState<any[]>([]);
@@ -692,16 +695,74 @@ const QueriesManagement = ({
                         ? 'bg-primary text-primary-foreground' 
                         : 'bg-muted'
                     }`}
-                  >
-                    <p className="text-sm">{message.message}</p>
-                    <p className={`text-xs mt-1 ${
-                      message.sender_type === 'admin' 
-                        ? 'text-primary-foreground/70' 
-                        : 'text-muted-foreground'
-                    }`}>
-                      {message.sender_type === 'admin' ? 'Admin' : 'Customer'} • {new Date(message.created_at).toLocaleTimeString()}
-                    </p>
-                  </div>
+                   >
+                     {message.message && <p className="text-sm">{message.message}</p>}
+                     {message.file_url && (
+                       <div className="mt-2">
+                         {message.file_type?.startsWith('image/') ? (
+                           <div className="space-y-2">
+                             <img 
+                               src={message.file_url} 
+                               alt={message.file_name} 
+                               className="max-w-48 max-h-48 rounded-lg object-cover"
+                             />
+                             <div className="flex items-center gap-2 text-xs">
+                               <FileImage className="h-3 w-3" />
+                               <span>{message.file_name}</span>
+                               <Button 
+                                 variant="ghost" 
+                                 size="sm" 
+                                 className="h-auto p-1"
+                                 onClick={() => window.open(message.file_url, '_blank')}
+                               >
+                                 <Download className="h-3 w-3" />
+                               </Button>
+                             </div>
+                           </div>
+                         ) : message.file_type?.startsWith('video/') ? (
+                           <div className="space-y-2">
+                             <video 
+                               src={message.file_url} 
+                               controls 
+                               className="max-w-48 max-h-48 rounded-lg"
+                             />
+                             <div className="flex items-center gap-2 text-xs">
+                               <Video className="h-3 w-3" />
+                               <span>{message.file_name}</span>
+                               <Button 
+                                 variant="ghost" 
+                                 size="sm" 
+                                 className="h-auto p-1"
+                                 onClick={() => window.open(message.file_url, '_blank')}
+                               >
+                                 <Download className="h-3 w-3" />
+                               </Button>
+                             </div>
+                           </div>
+                         ) : (
+                           <div className="flex items-center gap-2 text-xs p-2 bg-background/10 rounded">
+                             <FileImage className="h-3 w-3" />
+                             <span>{message.file_name}</span>
+                             <Button 
+                               variant="ghost" 
+                               size="sm" 
+                               className="h-auto p-1"
+                               onClick={() => window.open(message.file_url, '_blank')}
+                             >
+                               <Download className="h-3 w-3" />
+                             </Button>
+                           </div>
+                         )}
+                       </div>
+                     )}
+                     <p className={`text-xs mt-1 ${
+                       message.sender_type === 'admin' 
+                         ? 'text-primary-foreground/70' 
+                         : 'text-muted-foreground'
+                     }`}>
+                       {message.sender_type === 'admin' ? 'Admin' : 'Customer'} • {new Date(message.created_at).toLocaleTimeString()}
+                     </p>
+                   </div>
                 </div>
               ))}
             </div>
